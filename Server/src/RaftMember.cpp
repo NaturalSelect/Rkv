@@ -29,7 +29,7 @@ void rkv::RaftMember::Cancel()
     }
 }
 
-void rkv::RaftMember::DoProposeAsync(const rkv::LogProposal *proposal,sharpen::Future<bool> *result)
+void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<bool> *result)
 {
     assert(result != nullptr);
     assert(proposal != nullptr);
@@ -45,16 +45,16 @@ void rkv::RaftMember::DoProposeAsync(const rkv::LogProposal *proposal,sharpen::F
         request.LeaderId() = proposal->Id();
         if(this->currentIndex_ != 0)
         {
-            request.SetPrevLogTerm(proposal->Storage().GetLog(this->currentIndex_).GetTerm());
+            request.SetPrevLogTerm(proposal->GetStorage().GetLog(this->currentIndex_).GetTerm());
         }
         else
         {
             request.SetPrevLogTerm(0);
         }
-        std::uint64_t lastIndex = proposal->Storage().GetLastLogIndex();
+        std::uint64_t lastIndex = proposal->GetStorage().GetLastLogIndex();
         for (std::uint64_t i = this->currentIndex_ + 1; i <= lastIndex; ++i)
         {
-            request.Logs().emplace_back(proposal->Storage().GetLog(i));
+            request.Logs().emplace_back(proposal->GetStorage().GetLog(i));
         }
         sharpen::ByteBuffer buf;
         request.StoreTo(buf);
@@ -84,8 +84,9 @@ void rkv::RaftMember::DoProposeAsync(const rkv::LogProposal *proposal,sharpen::F
         }
         else
         {
-            std::fprintf(stderr,"[Error]Fail to append entires to %s:%hu current index %llu -> %llu\n",ip,this->id_.GetPort(),this->currentIndex_,response.GetAppiledIndex());
+            std::fprintf(stderr,"[Error]Fail to append entires to %s:%hu term %llu -> %llu current index %llu -> %llu\n",ip,this->id_.GetPort(),request.GetLeaderTerm(),response.GetTerm(),this->currentIndex_,response.GetAppiledIndex());
             this->currentIndex_ = response.GetAppiledIndex();
+            proposal->SetMaxTerm(response.GetTerm());
             result->Complete(false);
             return;
         }
@@ -94,8 +95,8 @@ void rkv::RaftMember::DoProposeAsync(const rkv::LogProposal *proposal,sharpen::F
     }
     catch(const std::system_error &e)
     {
-        sharpen::ErrorCode errCode{e.code().value()};
-        if (errCode == sharpen::ErrorCancel || this->channel_->IsClosed())
+        sharpen::ErrorCode errCode{static_cast<sharpen::ErrorCode>(e.code().value())};
+        if (errCode == sharpen::ErrorCancel)
         {
             std::printf("[Info]Append entires to %s:%hu operation canceled\n",ip,this->id_.GetPort());
         }
@@ -113,7 +114,7 @@ void rkv::RaftMember::DoProposeAsync(const rkv::LogProposal *proposal,sharpen::F
     result->Complete(false);
 }
 
-void rkv::RaftMember::DoProposeAsync(const rkv::VoteProposal *proposal,sharpen::Future<bool> *result)
+void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future<bool> *result)
 {
     assert(result != nullptr);
     assert(proposal != nullptr);
@@ -127,13 +128,15 @@ void rkv::RaftMember::DoProposeAsync(const rkv::VoteProposal *proposal,sharpen::
         reqeust.SetTerm(proposal->GetTerm());
         reqeust.SetLastIndex(proposal->GetLastIndex());
         reqeust.SetLastTerm(proposal->GetLastTerm());
+        std::printf("[Info]Ready to get vote from %s:%hu term is %llu\n",ip,this->id_.GetPort(),reqeust.GetTerm());
         sharpen::ByteBuffer buf;
-        reqeust.StoreTo(buf);
+        reqeust.Serialize().StoreTo(buf);
         rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteRequest,buf.GetSize())};
         this->channel_->WriteObjectAsync(header);
         this->channel_->WriteAsync(buf);
         if(this->channel_->ReadObjectAsync(header) != sizeof(header))
         {
+            std::printf("[Error]Channel %s:%hu close\n",ip,this->id_.GetPort());
             sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
         }
         if(rkv::GetMessageType(header) != rkv::MessageType::VoteResponse)
@@ -148,18 +151,26 @@ void rkv::RaftMember::DoProposeAsync(const rkv::VoteProposal *proposal,sharpen::
         }
         rkv::VoteResponse response;
         response.Unserialize().LoadFrom(buf);
-        std::printf("[Info]Got vote from %s:%hu\n",ip,this->id_.GetPort());
-        if(proposal->Callback())
+        if(response.Success())
         {
-            proposal->Callback()();
+            std::printf("[Info]Got vote from %s:%hu\n",ip,this->id_.GetPort());
+            if(proposal->Callback())
+            {
+                proposal->Callback()();
+            }
+        }
+        else
+        {
+            std::printf("[Info]Cannot get vote from %s:%hu term is %llu\n",ip,this->id_.GetPort(),response.GetTerm());
+            proposal->SetMaxTerm(response.GetTerm());
         }
         result->Complete(response.Success());
         return;
     }
     catch(const std::system_error &e)
     {
-        sharpen::ErrorCode errCode{e.code().value()};
-        if (errCode == sharpen::ErrorCancel || this->channel_->IsClosed())
+        sharpen::ErrorCode errCode{static_cast<sharpen::ErrorCode>(e.code().value())};
+        if (errCode == sharpen::ErrorCancel)
         {
             std::printf("[Info]Request vote from %s:%hu operation cancel\n",ip,this->id_.GetPort());
         }
@@ -177,14 +188,14 @@ void rkv::RaftMember::DoProposeAsync(const rkv::VoteProposal *proposal,sharpen::
     result->Complete(false);
 }
 
-void rkv::RaftMember::ProposeAsync(const rkv::LogProposal &proposal,sharpen::Future<bool> &result)
+void rkv::RaftMember::ProposeAsync(rkv::LogProposal &proposal,sharpen::Future<bool> &result)
 {
-    using FnPtr = void(Self::*)(const rkv::LogProposal *,sharpen::Future<bool> *);
+    using FnPtr = void(Self::*)(rkv::LogProposal *,sharpen::Future<bool> *);
     this->engine_->Launch(static_cast<FnPtr>(&Self::DoProposeAsync),this,&proposal,&result);
 }
 
-void rkv::RaftMember::ProposeAsync(const rkv::VoteProposal &proposal,sharpen::Future<bool> &result)
+void rkv::RaftMember::ProposeAsync(rkv::VoteProposal &proposal,sharpen::Future<bool> &result)
 {
-    using FnPtr = void(Self::*)(const rkv::VoteProposal *,sharpen::Future<bool> *);
+    using FnPtr = void(Self::*)(rkv::VoteProposal *,sharpen::Future<bool> *);
     this->engine_->Launch(static_cast<FnPtr>(&Self::DoProposeAsync),this,&proposal,&result);
 }

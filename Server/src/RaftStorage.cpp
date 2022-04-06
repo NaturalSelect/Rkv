@@ -169,6 +169,10 @@ void rkv::RaftStorage::ResetVotedFor()
 
 std::uint64_t rkv::RaftStorage::GetLastLogIndex() const
 {
+    if(this->EmptyLogs())
+    {
+        return 0;
+    }
     return this->GetLastLog().GetIndex();
 }
 

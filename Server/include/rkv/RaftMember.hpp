@@ -27,11 +27,16 @@ namespace rkv
 
         void ConnectToEndPoint();
 
-        void DoProposeAsync(const rkv::LogProposal *proposal,sharpen::Future<bool> *result);
+        void DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<bool> *result);
 
-        void DoProposeAsync(const rkv::VoteProposal *proposal,sharpen::Future<bool> *result);
+        void DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future<bool> *result);
     public:
-        RaftMember(sharpen::IpEndPoint id,sharpen::EventEngine *engine);
+        RaftMember(sharpen::IpEndPoint id,sharpen::EventEngine &engine)
+            :currentIndex_(0)
+            ,id_(id)
+            ,channel_(nullptr)
+            ,engine_(&engine)
+        {}
     
         RaftMember(const Self &other) = default;
     
@@ -70,9 +75,9 @@ namespace rkv
 
         void Cancel();
 
-        void ProposeAsync(const rkv::LogProposal &proposal,sharpen::Future<bool> &result);
+        void ProposeAsync(rkv::LogProposal &proposal,sharpen::Future<bool> &result);
 
-        void ProposeAsync(const rkv::VoteProposal &proposal,sharpen::Future<bool> &result);
+        void ProposeAsync(rkv::VoteProposal &proposal,sharpen::Future<bool> &result);
     };
 }
 

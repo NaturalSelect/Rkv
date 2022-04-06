@@ -13,17 +13,19 @@ namespace rkv
     private:
         using Self = rkv::LogProposal;
     
-        rkv::RaftStorage *storage_;
+        const rkv::RaftStorage *storage_;
         sharpen::IpEndPoint id_;
         std::uint64_t term_;
         std::uint64_t commintIndex_;
+        std::uint64_t maxTerm_;
     public:
-    
-        explicit LogProposal(rkv::RaftStorage &storage)
+
+        explicit LogProposal(const rkv::RaftStorage &storage)
             :storage_(&storage)
             ,id_()
             ,term_(0)
             ,commintIndex_(0)
+            ,maxTerm_(0)
         {}
     
         LogProposal(const Self &other) = default;
@@ -45,18 +47,14 @@ namespace rkv
                 this->id_ = std::move(other.id_);
                 this->term_ = other.term_;
                 this->commintIndex_ = other.commintIndex_;
+                this->maxTerm_ = other.maxTerm_;
             }
             return *this;
         }
     
         ~LogProposal() noexcept = default;
 
-        inline rkv::RaftStorage &Storage() noexcept
-        {
-            return *this->storage_;
-        }
-
-        inline const rkv::RaftStorage &Storage() const noexcept
+        inline const rkv::RaftStorage &GetStorage() const noexcept
         {
             return *this->storage_;
         }
@@ -79,6 +77,7 @@ namespace rkv
         inline void SetTerm(std::uint64_t term) noexcept
         {
             this->term_ = term;
+            this->maxTerm_ = term;
         }
 
         inline std::uint64_t GetCommitIndex() const noexcept
@@ -89,6 +88,19 @@ namespace rkv
         inline void SetCommitIndex(std::uint64_t index) noexcept
         {
             this->commintIndex_ = index;
+        }
+
+        inline void SetMaxTerm(std::uint64_t term) noexcept
+        {
+            if(term > this->maxTerm_)
+            {
+                this->maxTerm_ = term;
+            }
+        }
+
+        inline std::uint64_t GetMaxTerm() const noexcept
+        {
+            return this->maxTerm_;
         }
     };
 }

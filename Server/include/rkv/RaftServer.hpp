@@ -8,10 +8,11 @@
 #include <sharpen/RaftWrapper.hpp>
 #include <sharpen/TimerLoop.hpp>
 
-#include <rkv/RaftLog.hpp>
-#include <rkv/RaftMember.hpp>
-#include <rkv/RaftStorage.hpp>
-#include <rkv/KeyValueService.hpp>
+#include "RaftLog.hpp"
+#include "RaftMember.hpp"
+#include "RaftStorage.hpp"
+#include "KeyValueService.hpp"
+#include "RaftServerOption.hpp"
 
 namespace rkv
 {
@@ -36,19 +37,47 @@ namespace rkv
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        std::mt19937 random_;
+        sharpen::TimerLoop::LoopStatus FollowerLoop();
+
+        sharpen::TimerLoop::LoopStatus LeaderLoop();
+
+        std::chrono::milliseconds GenerateWaitTime() const;
+
+        bool ProposeAppendEntires();
+
+        void RequestVoteCallback() noexcept;
+
+        static constexpr std::uint32_t followerMinWaitMs{5*1000};
+        static constexpr std::uint32_t followerMaxWaitMs{10*1000};
+        static constexpr std::uint32_t leaderMaxWaitMs{3*1000};
+        static constexpr std::uint32_t electionMaxWaitMs{1*1000};
+        static constexpr std::uint32_t appendEntriesMaxWaitMs{1*1000};
+
+        mutable std::minstd_rand random_;
+        std::uniform_int_distribution<std::uint32_t> distribution_;
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<Raft> raft_;
         sharpen::SpinLock voteLock_;
+        sharpen::TimerPtr proposeTimer_;
         sharpen::TimerLoop leaderLoop_;
         sharpen::TimerLoop followerLoop_;
     public:
-    
-        RaftServer(sharpen::EventEngine &engine,sharpen::IpEndPoint &selfId);
+        RaftServer(sharpen::EventEngine &engine,const rkv::RaftServerOption &option);
     
         ~RaftServer() noexcept = default;
 
-        void RunAsync();
+        inline void RunAsync()
+        {
+            this->followerLoop_.Start();
+            sharpen::TcpServer::RunAsync();
+        }
+
+        void Stop()
+        {
+            sharpen::TcpServer::Stop();
+            this->followerLoop_.Terminate();
+            this->leaderLoop_.Terminate();
+        }
     };
 }
 

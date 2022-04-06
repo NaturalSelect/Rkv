@@ -18,6 +18,7 @@ namespace rkv
         std::uint64_t lastLogIndex_;
         std::uint64_t lastLogTerm_;
         std::function<void()> callback_;
+        std::uint64_t maxTerm_;
     public:
     
         VoteProposal() = default;
@@ -42,6 +43,7 @@ namespace rkv
                 this->lastLogIndex_ = other.lastLogIndex_;
                 this->lastLogTerm_ = other.lastLogTerm_;
                 this->callback_ = std::move(other.callback_);
+                this->maxTerm_ = other.maxTerm_;
             }
             return *this;
         }
@@ -66,6 +68,7 @@ namespace rkv
         inline void SetTerm(std::uint64_t term) noexcept
         {
             this->term_ = term;
+            this->maxTerm_ = term;
         }
 
         inline std::uint64_t GetLastIndex() const noexcept
@@ -96,6 +99,19 @@ namespace rkv
         inline const std::function<void()> &Callback() const noexcept
         {
             return this->callback_;
+        }
+
+        inline void SetMaxTerm(std::uint64_t term) noexcept
+        {
+            if(term > this->maxTerm_)
+            {
+                this->maxTerm_ = term;
+            }
+        }
+
+        inline std::uint64_t GetMaxTerm() const noexcept
+        {
+            return this->maxTerm_;
         }
     };   
 }
