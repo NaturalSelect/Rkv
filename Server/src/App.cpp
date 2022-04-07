@@ -125,7 +125,7 @@ static void Entry()
     rkv::RaftServer server{sharpen::EventEngine::GetEngine(),opt};
     sharpen::RegisterCtrlHandler(sharpen::CtrlType::Interrupt,std::bind(&StopServer,&server));
     server.RunAsync();
-    std::puts("stop server");
+    std::puts("[Info]Server Stopped");
     sharpen::CleanupNetSupport();
 }
 
