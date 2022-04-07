@@ -213,6 +213,7 @@ static void Entry(const char *ip,std::uint16_t port)
             {
                 std::putchar(buf[i]);
             }
+            std::putchar('\n');
         }
         else if(command == "put" && line.size() > 5)
         {
@@ -236,6 +237,7 @@ static void Entry(const char *ip,std::uint16_t port)
                     std::puts("[Info]Disconnect with leader");
                     break;
                 }
+                std::puts("[Info]Operation complete");
             }
             catch(const std::exception& e)
             {
@@ -244,23 +246,24 @@ static void Entry(const char *ip,std::uint16_t port)
                 break;
             }
         }
-        else if (command == "delete")
+        else if (command == "delete" && line.size() > 6)
         {
-            sharpen::ByteBuffer key{line.size() - 4};
-            std::memcpy(key.Data(),line.data() + 4,line.size() - 4);
+            sharpen::ByteBuffer key{line.size() - 6};
+            std::memcpy(key.Data(),line.data() + 6,line.size() - 6);
             try
             {
                 bool result{DeleteKey(channel,std::move(key))};
                 if(!result)
                 {
-                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 4);
+                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 6);
                     std::puts("[Info]Disconnect with leader");
                     break;
                 }
+                std::puts("[Info]Operation complete");
             }
             catch(const std::exception& e)
             {
-                std::fprintf(stderr,"[Error]Cannot delete key %s because %s\n",line.data() + 4,e.what());
+                std::fprintf(stderr,"[Error]Cannot delete key %s because %s\n",line.data() + 6,e.what());
                 std::puts("[Info]Disconnect with leader");
                 break;
             }
