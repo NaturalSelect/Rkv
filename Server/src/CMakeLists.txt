@@ -12,6 +12,6 @@ file(GLOB_RECURSE headers ${INCLUDE_DIR} "*.h" "*.hpp")
 
 file(GLOB_RECURSE src "${PROJECT_SOURCE_DIR}/Server/src" "*.h" "*.hpp" "*.cpp" "*.cc")
 
-add_executable(RaftKvServer ${headers} ${src})
+add_executable(RkvServer ${headers} ${src})
 
-target_link_libraries(RaftKvServer sharpen::sharpen RaftKvShared)
+target_link_libraries(RkvServer sharpen::sharpen RkvShared)

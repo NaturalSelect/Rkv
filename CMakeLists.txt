@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(RaftKv VERSION 1.0.0)
+project(Rkv VERSION 1.0.0)
 
 include(CTest)
 enable_testing()

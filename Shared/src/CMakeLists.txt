@@ -10,6 +10,6 @@ file(GLOB_RECURSE headers ${INCLUDE_DIR} "*.h" "*.hpp")
 
 file(GLOB_RECURSE src "${PROJECT_SOURCE_DIR}/Shared/src" "*.h" "*.hpp" "*.cpp" "*.cc")
 
-add_library(RaftKvShared ${src} ${headers})
+add_library(RkvShared ${src} ${headers})
 
-target_link_libraries(RaftKvShared sharpen::sharpen)
+target_link_libraries(RkvShared sharpen::sharpen)
