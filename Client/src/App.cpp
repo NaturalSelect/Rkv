@@ -63,6 +63,38 @@ static void ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType ex
     }
 }
 
+static sharpen::Optional<sharpen::IpEndPoint> RedirectLeader(sharpen::NetStreamChannelPtr channel)
+{
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,0)};
+    WriteMessage(channel,header);
+    sharpen::ByteBuffer buf;
+    ReadMessage(channel,rkv::MessageType::LeaderRedirectResponse,buf);
+    rkv::LeaderRedirectResponse response;
+    response.Unserialize().LoadFrom(buf);
+    if(response.KnowLeader())
+    {
+        char ip[21] = {};
+        response.Endpoint().GetAddrString(ip,sizeof(ip));
+        std::printf("[Info]Got leader id %s:%hu\n",ip,response.Endpoint().GetPort());
+        return response.Endpoint();
+    }
+    std::puts("[Info]Cannot get leader id");
+    return sharpen::EmptyOpt;
+}
+
+static sharpen::ByteBuffer GetValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
+{
+    rkv::GetRequest request;
+    request.Key() = std::move(key);
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetRequest,buf.GetSize())};
+    WriteMessage(channel,header,buf);
+    buf.Clear();
+    ReadMessage(channel,rkv::MessageType::GetResponse,buf);
+    
+}
+
 static void Entry()
 {
     sharpen::StartupNetSupport();
