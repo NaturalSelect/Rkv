@@ -90,9 +90,39 @@ static sharpen::ByteBuffer GetValue(sharpen::NetStreamChannelPtr channel,sharpen
     request.Serialize().StoreTo(buf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetRequest,buf.GetSize())};
     WriteMessage(channel,header,buf);
-    buf.Clear();
     ReadMessage(channel,rkv::MessageType::GetResponse,buf);
-    
+    rkv::GetResponse response;
+    response.Unserialize().LoadFrom(buf);
+    return response.Value();
+}
+
+static bool PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value)
+{
+    rkv::PutRequest request;
+    request.Key() = std::move(key);
+    request.Value() = std::move(value);
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutRequest,buf.GetSize())};
+    WriteMessage(channel,header,buf);
+    ReadMessage(channel,rkv::MessageType::PutResponse,buf);
+    rkv::PutResponse response;
+    response.Unserialize().LoadFrom(buf);
+    return response.Success();
+}
+
+static bool DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
+{
+    rkv::DeleteRequest request;
+    request.Key() = std::move(key);
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteReqeust,buf.GetSize())};
+    WriteMessage(channel,header,buf);
+    ReadMessage(channel,rkv::MessageType::DeleteResponse,buf);
+    rkv::DeleteResponse response;
+    response.Unserialize().LoadFrom(buf);
+    return response.Success();
 }
 
 static void Entry()
