@@ -8,6 +8,7 @@ void Entry()
     sharpen::CleanupNetSupport();
 }
 
+
 int main(int argc, char const *argv[])
 {
     sharpen::EventEngine &engine = sharpen::EventEngine::SetupSingleThreadEngine();

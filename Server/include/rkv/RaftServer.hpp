@@ -7,6 +7,7 @@
 #include <sharpen/TcpServer.hpp>
 #include <sharpen/RaftWrapper.hpp>
 #include <sharpen/TimerLoop.hpp>
+#include <sharpen/AsyncMutex.hpp>
 
 #include "RaftLog.hpp"
 #include "RaftMember.hpp"
@@ -29,9 +30,13 @@ namespace rkv
 
         void OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const;
 
+        void OnPutFail(sharpen::INetStreamChannel &channel);
+
         void OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnDeleteFail(sharpen::INetStreamChannel &channel);
 
         void OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
@@ -58,6 +63,7 @@ namespace rkv
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<Raft> raft_;
         sharpen::SpinLock voteLock_;
+        sharpen::AsyncMutex raftLock_;
         sharpen::TimerPtr proposeTimer_;
         sharpen::TimerLoop leaderLoop_;
         sharpen::TimerLoop followerLoop_;

@@ -60,11 +60,14 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::FollowerLoop()
     {
         return sharpen::TimerLoop::LoopStatus::Terminate;
     }
-    this->raft_->RaiseElection();
     rkv::VoteProposal proposal;
-    proposal.SetTerm(this->raft_->GetCurrentTerm());
-    proposal.SetLastIndex(this->raft_->GetLastIndex());
-    proposal.SetLastTerm(this->raft_->GetLastTerm());
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
+        this->raft_->RaiseElection();
+        proposal.SetTerm(this->raft_->GetCurrentTerm());
+        proposal.SetLastIndex(this->raft_->GetLastIndex());
+        proposal.SetLastTerm(this->raft_->GetLastTerm());
+    }
     proposal.Id() = this->raft_->GetSelfId();
     proposal.Callback() = std::bind(&Self::RequestVoteCallback,this);
     sharpen::AwaitableFuture<bool> continuation;
@@ -72,7 +75,16 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::FollowerLoop()
     std::puts("[Info]Try to request vote from other members");
     sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::electionMaxWaitMs},this->raft_->Members().begin(),this->raft_->Members().end(),proposal,continuation,finish);
     continuation.Await();
-    if(this->raft_->StopElection())
+    bool result{false};
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
+        result = this->raft_->StopElection();
+        if(!result)
+        {
+            this->raft_->ReactNewTerm(proposal.GetMaxTerm());
+        }
+    }
+    if(result)
     {
         std::printf("[Info]Become leader of term %llu\n",this->raft_->GetCurrentTerm());
         this->leaderLoop_.Start();
@@ -82,7 +94,6 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::FollowerLoop()
     }
     std::puts("[Info]Election failure");
     finish.WaitAsync();
-    this->raft_->ReactNewTerm(proposal.GetMaxTerm());
     std::puts("[Info]Follower loop continue");
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
@@ -118,7 +129,21 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::LeaderLoop()
         this->followerLoop_.Start();
         return sharpen::TimerLoop::LoopStatus::Terminate;
     }
-    this->ProposeAppendEntires();
+    if(!this->raftLock_.TryLock())
+    {
+        return sharpen::TimerLoop::LoopStatus::Continue;
+    }
+    bool result{false};
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_,std::adopt_lock};
+        result = this->ProposeAppendEntires();
+        if(result)
+        {
+            std::uint64_t index{this->raft_->GetLastIndex()};
+            this->raft_->SetCommitIndex(index);
+            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
+        }
+    }
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
