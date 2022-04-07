@@ -248,14 +248,14 @@ static void Entry(const char *ip,std::uint16_t port)
         }
         else if (command == "delete" && line.size() > 6)
         {
-            sharpen::ByteBuffer key{line.size() - 6};
-            std::memcpy(key.Data(),line.data() + 6,line.size() - 6);
+            sharpen::ByteBuffer key{line.size() - 7};
+            std::memcpy(key.Data(),line.data() + 7,line.size() - 7);
             try
             {
                 bool result{DeleteKey(channel,std::move(key))};
                 if(!result)
                 {
-                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 6);
+                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 7);
                     std::puts("[Info]Disconnect with leader");
                     break;
                 }
@@ -263,7 +263,7 @@ static void Entry(const char *ip,std::uint16_t port)
             }
             catch(const std::exception& e)
             {
-                std::fprintf(stderr,"[Error]Cannot delete key %s because %s\n",line.data() + 6,e.what());
+                std::fprintf(stderr,"[Error]Cannot delete key %s because %s\n",line.data() + 7,e.what());
                 std::puts("[Info]Disconnect with leader");
                 break;
             }

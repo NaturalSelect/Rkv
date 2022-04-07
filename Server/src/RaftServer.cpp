@@ -233,6 +233,7 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
     }
     std::putchar('\n');
     bool result{false};
+    this->leaderLoop_.Cancel();
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
         std::uint64_t index{this->raft_->GetLastIndex()};

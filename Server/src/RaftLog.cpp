@@ -14,7 +14,7 @@ sharpen::Size rkv::RaftLog::ComputeSize() const noexcept
     size += this->key_.GetSize();
     builder.Set(this->value_.GetSize());
     size += Helper::ComputeSize(builder);
-    size += this->key_.GetSize();
+    size += this->value_.GetSize();
     return size;
 }
 
