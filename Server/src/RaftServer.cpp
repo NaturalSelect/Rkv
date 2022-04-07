@@ -199,6 +199,16 @@ void rkv::RaftServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::B
     channel.WriteAsync(resBuf);
 }
 
+void rkv::RaftServer::OnPutFail(sharpen::INetStreamChannel &channel)
+{
+    rkv::PutResponse response{false};
+    char resBuf[sizeof(std::uint64_t)];
+    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,sz);
+}
+
 void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
@@ -209,7 +219,38 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
     request.Unserialize().LoadFrom(buf);
     rkv::RaftLog log;
     log.SetOperation(rkv::RaftLog::Operation::Put);
-    log.Key();
+    log.Key() = std::move(request.Key());
+    log.Value() = std::move(request.Value());
+    bool result{false};
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
+        std::uint64_t index{this->raft_->GetLastIndex()};
+        log.SetIndex(index + 1);
+        log.SetTerm(this->raft_->GetCurrentTerm());
+        this->raft_->AppendLog(std::move(log));
+        result = this->ProposeAppendEntires();
+        if(result)
+        {
+            this->raft_->SetCommitIndex(index + 1);
+            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
+        }
+    }
+    rkv::PutResponse response{result};
+    char resBuf[sizeof(std::uint64_t)];
+    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,sz);
+}
+
+void rkv::RaftServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
+{
+    rkv::PutResponse response{false};
+    char resBuf[sizeof(std::uint64_t)];
+    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,sz);
 }
 
 void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
@@ -218,6 +259,31 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
     {
         return this->OnDeleteFail(channel);
     }
+    rkv::DeleteRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::RaftLog log;
+    log.SetOperation(rkv::RaftLog::Operation::Delete);
+    log.Key() = std::move(request.Key());
+    bool result{false};
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
+        std::uint64_t index{this->raft_->GetLastIndex()};
+        log.SetIndex(index + 1);
+        log.SetTerm(this->raft_->GetCurrentTerm());
+        this->raft_->AppendLog(std::move(log));
+        result = this->ProposeAppendEntires();
+        if(result)
+        {
+            this->raft_->SetCommitIndex(index + 1);
+            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
+        }
+    }
+    rkv::PutResponse response{result};
+    char resBuf[sizeof(std::uint64_t)];
+    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,sz);
 }
 
 void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
@@ -225,7 +291,14 @@ void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const 
     this->followerLoop_.Cancel();
     rkv::AppendEntiresRequest request;
     request.Unserialize().LoadFrom(buf);
-    bool result{this->raft_->AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex())};
+    bool result{false};
+    std::uint64_t currentTerm{0};
+    std::uint64_t lastAppiled{0};
+    {
+        result = this->raft_->AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
+        currentTerm = this->raft_->GetCurrentTerm();
+        lastAppiled = this->raft_->GetLastApplied();
+    }
     std::printf("[Info]Channel want to append entries to host term is %llu\n",request.GetLeaderTerm());
     if(result)
     {
@@ -237,8 +310,8 @@ void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const 
     }
     rkv::AppendEntiresResponse response;
     response.SetResult(result);
-    response.SetTerm(this->raft_->GetCurrentTerm());
-    response.SetAppiledIndex(this->raft_->GetLastApplied());
+    response.SetTerm(currentTerm);
+    response.SetAppiledIndex(lastAppiled);
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntiresResponse,resBuf.GetSize())};
@@ -250,7 +323,12 @@ void rkv::RaftServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sh
 {
     rkv::VoteRequest request;
     request.Unserialize().LoadFrom(buf);
-    bool result{this->raft_->RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm())};
+    bool result{false};
+    std::uint64_t currentTerm{0};
+    {
+        result = this->raft_->RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
+        currentTerm = this->raft_->GetCurrentTerm();
+    }
     std::printf("[Info]Candidate want to get vote from host term is %llu last log index is %llu last log term is %llu\n",request.GetTerm(),request.GetLastIndex(),request.GetLastTerm());
     if(result)
     {
@@ -262,7 +340,7 @@ void rkv::RaftServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sh
     }
     rkv::VoteResponse response;
     response.SetResult(result);
-    response.SetTerm(this->raft_->GetCurrentTerm());
+    response.SetTerm(currentTerm);
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteResponse,resBuf.GetSize())};
