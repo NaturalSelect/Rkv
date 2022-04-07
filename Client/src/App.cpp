@@ -3,6 +3,7 @@
 #include <sharpen/INetStreamChannel.hpp>
 #include <sharpen/IpEndPoint.hpp>
 #include <sharpen/Converter.hpp>
+#include <sharpen/IInputPipeChannel.hpp>
 #include <rkv/PutRequest.hpp>
 #include <rkv/PutResponse.hpp>
 #include <rkv/GetRequest.hpp>
@@ -166,9 +167,107 @@ static void Entry(const char *ip,std::uint16_t port)
     std::puts("[Info]Command list");
     std::puts("\tget <key> - get a value\n"
                 "\tput <key> <value> - put a key value pair\n"
-                "\tdelete <key> - delete a key value pair");
+                "\tdelete <key> - delete a key value pair\n"
+                "\tquit - exist client");
     std::puts("[Info]Enter interactive model");
-    
+    sharpen::InputPipeChannelPtr input = sharpen::MakeStdinPipe();
+    while (1)
+    {
+        std::string line{input->GetsAsync()};
+        if(line == "quit")
+        {
+            break;
+        }
+        char commandBuf[7] = {};
+        int r{std::sscanf(line.data(),"%6s",commandBuf)};
+        std::string command{commandBuf};
+        if(r == -1)
+        {
+            std::fputs("[Error]Please re-enter command\n",stderr);
+            continue;
+        }
+        if(command == "get" && line.size() > 4)
+        {
+            sharpen::ByteBuffer key{line.size() - 4};
+            std::memcpy(key.Data(),line.data() + 4,line.size() - 4);
+            sharpen::ByteBuffer buf;
+            try
+            {
+                buf = GetValue(channel,key);
+            }
+            catch(const std::exception& e)
+            {
+                std::fprintf(stderr,"[Error]Cannot get key %s because %s\n",line.data() + 4,e.what());
+                std::puts("[Info]Disconnect with leader");
+                break;
+            }
+            if(buf.Empty())
+            {
+                std::printf("[Info]Key %s doesn't exist\n",line.data() + 4);
+                continue;
+            }
+            std::fputs("[Info]Value is ",stdout);
+            for (std::size_t i = 0; i != buf.GetSize(); ++i)
+            {
+                std::putchar(buf[i]);
+            }
+        }
+        else if(command == "put" && line.size() > 5)
+        {
+            std::size_t first = line.find(' ');
+            std::size_t last = line.find_last_of(' ');
+            if(first == line.npos || last == line.npos || first == last || last == line.size() - 1)
+            {
+                std::fprintf(stderr,"[Error]Unknown command %s\n",line.data());
+                continue;
+            }
+            sharpen::ByteBuffer key{last - first};
+            std::memcpy(key.Data(),line.data() + first + 1,last - first);
+            sharpen::ByteBuffer value{line.size() - last};
+            std::memcpy(value.Data(),line.data() + last + 1,line.size() - last);
+            try
+            {
+                bool result{PutKeyValue(channel,key,value)};
+                if(!result)
+                {
+                    std::fprintf(stderr,"[Error]Cannot put the key and value\n");
+                    std::puts("[Info]Disconnect with leader");
+                    break;
+                }
+            }
+            catch(const std::exception& e)
+            {
+                std::fprintf(stderr,"[Error]Cannot put the key and value because %s\n",e.what());
+                std::puts("[Info]Disconnect with leader");
+                break;
+            }
+        }
+        else if (command == "delete")
+        {
+            sharpen::ByteBuffer key{line.size() - 4};
+            std::memcpy(key.Data(),line.data() + 4,line.size() - 4);
+            try
+            {
+                bool result{DeleteKey(channel,std::move(key))};
+                if(!result)
+                {
+                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 4);
+                    std::puts("[Info]Disconnect with leader");
+                    break;
+                }
+            }
+            catch(const std::exception& e)
+            {
+                std::fprintf(stderr,"[Error]Cannot delete key %s because %s\n",line.data() + 4,e.what());
+                std::puts("[Info]Disconnect with leader");
+                break;
+            }
+        }
+        else
+        {
+            std::fprintf(stderr,"[Error]Unknown command %s\n",line.data());
+        }
+    }
     sharpen::CleanupNetSupport();
 }
 
