@@ -12,3 +12,5 @@ _deps
 /build
 /.vscode
 /lib
+/Config
+/Storage
