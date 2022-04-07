@@ -50,6 +50,26 @@ namespace rkv
         std::size_t LoadFrom(const char *data,std::size_t size);
 
         std::size_t UnsafeStoreTo(char *data) const noexcept;
+
+        inline sharpen::ByteBuffer &Key() noexcept
+        {
+            return this->key_;
+        }
+
+        inline const sharpen::ByteBuffer &Key() const noexcept
+        {
+            return this->key_;
+        }
+
+        inline sharpen::ByteBuffer &Value() noexcept
+        {
+            return this->value_;
+        }
+
+        inline const sharpen::ByteBuffer &Value() const noexcept
+        {
+            return this->value_;
+        }
     };
 }
 

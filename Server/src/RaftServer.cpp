@@ -201,12 +201,23 @@ void rkv::RaftServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::B
 
 void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-
+    if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
+    {
+        return this->OnPutFail(channel);
+    }
+    rkv::PutRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::RaftLog log;
+    log.SetOperation(rkv::RaftLog::Operation::Put);
+    log.Key();
 }
 
 void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-
+    if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
+    {
+        return this->OnDeleteFail(channel);
+    }
 }
 
 void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
