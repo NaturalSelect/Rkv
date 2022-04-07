@@ -23,6 +23,7 @@ std::size_t rkv::VoteResponse::LoadFrom(const char *data,std::size_t size)
     }
     sharpen::Varuint64 builder{0};
     offset += Helper::LoadFrom(builder,data + offset,size - offset);
+    this->term_ = builder.Get();
     return offset;
 }
 
