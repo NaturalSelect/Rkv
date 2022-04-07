@@ -221,6 +221,17 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
     log.SetOperation(rkv::RaftLog::Operation::Put);
     log.Key() = std::move(request.Key());
     log.Value() = std::move(request.Value());
+    std::fputs("[Info]Try to put key is ",stdout);
+    for (std::size_t i = 0; i != log.Key().GetSize(); ++i)
+    {
+        std::putchar(log.Key()[i]);
+    }
+    std::fputs(" value is ",stdout);
+    for (std::size_t i = 0; i != log.Value().GetSize(); ++i)
+    {
+        std::putchar(log.Value()[i]);
+    }
+    std::putchar('\n');
     bool result{false};
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};

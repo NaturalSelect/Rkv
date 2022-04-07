@@ -18,10 +18,6 @@ std::size_t rkv::GetResponse::LoadFrom(const char *data,std::size_t size)
     std::size_t offset{0};
     sharpen::Varuint64 builder{0};
     offset += Helper::LoadFrom(builder,data,size);
-    if(size <= offset)
-    {
-        throw sharpen::DataCorruptionException("get response corruption");
-    }
     std::size_t sz{sharpen::IntCast<sharpen::Size>(builder.Get())};
     if(sz)
     {

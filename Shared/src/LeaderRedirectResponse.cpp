@@ -21,7 +21,7 @@ std::size_t rkv::LeaderRedirectResponse::LoadFrom(const char *data,std::size_t s
     offset += Helper::LoadFrom(this->knowLeader_,data,size);
     if(this->knowLeader_)
     {
-        if(size < offset + sizeof(this->ep_))
+        if(size <= offset)
         {
             throw sharpen::DataCorruptionException("leader redirect response corruption");
         }

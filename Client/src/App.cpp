@@ -155,7 +155,8 @@ static void Entry(const char *ip,std::uint16_t port)
     {
         try
         {
-            channel = ConnectTo(ip,port);
+            std::printf("[Info]Redirect to %s:%hu\n",tmp,id.Get().GetPort());
+            channel = ConnectTo(tmp,id.Get().GetPort());
         }
         catch(const std::exception& e)
         {
@@ -171,6 +172,7 @@ static void Entry(const char *ip,std::uint16_t port)
                 "\tquit - exist client");
     std::puts("[Info]Enter interactive model");
     sharpen::InputPipeChannelPtr input = sharpen::MakeStdinPipe();
+    input->Register(sharpen::EventEngine::GetEngine());
     while (1)
     {
         std::string line{input->GetsAsync()};
@@ -221,10 +223,10 @@ static void Entry(const char *ip,std::uint16_t port)
                 std::fprintf(stderr,"[Error]Unknown command %s\n",line.data());
                 continue;
             }
-            sharpen::ByteBuffer key{last - first};
-            std::memcpy(key.Data(),line.data() + first + 1,last - first);
-            sharpen::ByteBuffer value{line.size() - last};
-            std::memcpy(value.Data(),line.data() + last + 1,line.size() - last);
+            sharpen::ByteBuffer key{last - first - 1};
+            std::memcpy(key.Data(),line.data() + first + 1,last - first - 1);
+            sharpen::ByteBuffer value{line.size() - last - 1};
+            std::memcpy(value.Data(),line.data() + last + 1,line.size() - last - 1);
             try
             {
                 bool result{PutKeyValue(channel,key,value)};

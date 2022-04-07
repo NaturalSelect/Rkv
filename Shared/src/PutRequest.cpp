@@ -45,6 +45,7 @@ std::size_t rkv::PutRequest::LoadFrom(const char *data,std::size_t size)
         sharpen::ByteBuffer value{sharpen::IntCast<std::size_t>(sz)};
         std::memcpy(value.Data(),data + offset,sz);
         offset += sz;
+        this->value_ = std::move(value);
     }
     return offset;
 }
