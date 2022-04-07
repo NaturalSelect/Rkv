@@ -125,15 +125,62 @@ static bool DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer k
     return response.Success();
 }
 
-static void Entry()
+static void Entry(const char *ip,std::uint16_t port)
 {
     sharpen::StartupNetSupport();
+    std::printf("[Info]Connecting to %s:%hu\n",ip,port);
+    sharpen::NetStreamChannelPtr channel;
+    try
+    {
+        channel = ConnectTo(ip,port);
+    }
+    catch(const std::exception& e)
+    {
+        std::fprintf(stderr,"[Error]Cannot connect to %s:%hu because %s\n",ip,port,e.what());
+        sharpen::CleanupNetSupport();
+        return;
+    }
+    std::puts("[Info]Try to redirect to leader");
+    auto id{RedirectLeader(channel)};
+    if(!id.Exist())
+    {
+        std::fputs("[Error]Cannot redirect to leader",stderr);
+        sharpen::CleanupNetSupport();
+        return;
+    }
+    char tmp[21] = {};
+    id.Get().GetAddrString(tmp,sizeof(tmp));
+    if(id.Get().GetPort() != port || std::strcmp(ip,tmp))
+    {
+        try
+        {
+            channel = ConnectTo(ip,port);
+        }
+        catch(const std::exception& e)
+        {
+            std::fprintf(stderr,"[Error]Cannot connect to %s:%hu because %s\n",ip,port,e.what());
+            sharpen::CleanupNetSupport();
+            return;
+        }
+    }
+    std::puts("[Info]Command list");
+    std::puts("\tget <key> - get a value\n"
+                "\tput <key> <value> - put a key value pair\n"
+                "\tdelete <key> - delete a key value pair");
+    std::puts("[Info]Enter interactive model");
+    
     sharpen::CleanupNetSupport();
 }
 
 int main(int argc, char const *argv[])
 {
+    if(argc < 3)
+    {
+        std::puts("usage: <ip> <port>");
+        return 0;
+    }
     sharpen::EventEngine &engine = sharpen::EventEngine::SetupSingleThreadEngine();
-    engine.Startup(&Entry);
+    std::uint16_t port{sharpen::Atoi<std::uint16_t>(argv[2],std::strlen(argv[2]))};
+    engine.Startup(&Entry,argv[1],port);
     return 0;
 }
