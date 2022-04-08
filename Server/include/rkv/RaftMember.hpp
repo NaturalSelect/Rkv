@@ -21,7 +21,7 @@ namespace rkv
         using Self = rkv::RaftMember;
 
         //max append 500 logs to follower once
-        static constexpr std::size_t appendLimit_{500};
+        static constexpr std::size_t appendLimit_{50};
     
         std::uint64_t currentIndex_;
         sharpen::IpEndPoint id_;
