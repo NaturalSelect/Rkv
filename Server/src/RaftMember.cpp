@@ -51,7 +51,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
         {
             request.SetPrevLogTerm(0);
         }
-        std::uint64_t lastIndex = proposal->GetStorage().GetLastLogIndex();
+        std::uint64_t lastIndex = (std::min)(this->currentIndex_ + Self::appendLimit_,proposal->GetStorage().GetLastLogIndex());
         for (std::uint64_t i = this->currentIndex_ + 1; i <= lastIndex; ++i)
         {
             request.Logs().emplace_back(proposal->GetStorage().GetLog(i));

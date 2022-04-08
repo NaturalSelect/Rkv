@@ -233,6 +233,7 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
     }
     std::putchar('\n');
     bool result{false};
+    std::size_t commitSize{0};
     this->leaderLoop_.Cancel();
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
@@ -240,7 +241,26 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
         log.SetIndex(index + 1);
         log.SetTerm(this->raft_->GetCurrentTerm());
         this->raft_->AppendLog(std::move(log));
-        result = this->ProposeAppendEntires();
+        while(1)
+        {
+            result = this->ProposeAppendEntires();
+            if(!result)
+            {
+                break;
+            }
+            for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
+            {
+                if(begin->second.GetCurrentIndex() >= index + 1)
+                {
+                    commitSize += 1;
+                }
+            }
+            if(commitSize >= this->raft_->MemberMajority())
+            {
+                break;
+            }
+            commitSize = 0;
+        }
         if(result)
         {
             this->raft_->SetCommitIndex(index + 1);
@@ -277,13 +297,33 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
     log.SetOperation(rkv::RaftLog::Operation::Delete);
     log.Key() = std::move(request.Key());
     bool result{false};
+    std::size_t commitSize{0};
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
         std::uint64_t index{this->raft_->GetLastIndex()};
         log.SetIndex(index + 1);
         log.SetTerm(this->raft_->GetCurrentTerm());
         this->raft_->AppendLog(std::move(log));
-        result = this->ProposeAppendEntires();
+        while(1)
+        {
+            result = this->ProposeAppendEntires();
+            if(!result)
+            {
+                break;
+            }
+            for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
+            {
+                if(begin->second.GetCurrentIndex() >= index + 1)
+                {
+                    commitSize += 1;
+                }
+            }
+            if(commitSize >= this->raft_->MemberMajority())
+            {
+                break;
+            }
+            commitSize = 0;
+        }
         if(result)
         {
             this->raft_->SetCommitIndex(index + 1);
