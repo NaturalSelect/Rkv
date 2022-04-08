@@ -25,7 +25,7 @@ void rkv::KeyValueService::Apply(rkv::RaftLog log)
         break;
     case rkv::RaftLog::Operation::Delete:
         {
-            std::fputs("[Info]Apply put log key is ",stdout);
+            std::fputs("[Info]Apply delete log key is ",stdout);
             for (std::size_t i = 0; i != log.Key().GetSize(); ++i)
             {
                 std::putchar(log.Key()[i]);

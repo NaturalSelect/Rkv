@@ -131,7 +131,7 @@ static void Entry()
 
 int main(int argc, char const *argv[])
 {
-    sharpen::EventEngine &engine = sharpen::EventEngine::SetupSingleThreadEngine();
+    sharpen::EventEngine &engine = sharpen::EventEngine::SetupEngine();
     engine.Startup(&Entry);
     return 0;
 }
