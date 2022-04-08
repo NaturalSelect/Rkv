@@ -306,12 +306,12 @@ void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const 
     bool result{false};
     std::uint64_t currentTerm{0};
     std::uint64_t lastAppiled{0};
+    std::printf("[Info]Channel want to append entries to host term is %llu prev log index is %llu prev log term is %llu commit index is %llu\n",request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
     {
         result = this->raft_->AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
         currentTerm = this->raft_->GetCurrentTerm();
         lastAppiled = this->raft_->GetLastApplied();
     }
-    std::printf("[Info]Channel want to append entries to host term is %llu\n",request.GetLeaderTerm());
     if(result)
     {
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
