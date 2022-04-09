@@ -249,8 +249,9 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
         log.SetIndex(index + 1);
         log.SetTerm(this->raft_->GetCurrentTerm());
         this->raft_->AppendLog(std::move(log));
-        while(1)
+        do
         {
+            commitSize = 0;
             result = this->ProposeAppendEntires();
             if(!result)
             {
@@ -263,12 +264,8 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
                     commitSize += 1;
                 }
             }
-            if(commitSize >= this->raft_->MemberMajority())
-            {
-                break;
-            }
-            commitSize = 0;
         }
+        while(commitSize < this->raft_->MemberMajority());
         if(result)
         {
             this->raft_->SetCommitIndex(index + 1);
@@ -312,8 +309,9 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
         log.SetIndex(index + 1);
         log.SetTerm(this->raft_->GetCurrentTerm());
         this->raft_->AppendLog(std::move(log));
-        while(1)
+        do
         {
+            commitSize = 0;
             result = this->ProposeAppendEntires();
             if(!result)
             {
@@ -326,12 +324,8 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
                     commitSize += 1;
                 }
             }
-            if(commitSize >= this->raft_->MemberMajority())
-            {
-                break;
-            }
-            commitSize = 0;
         }
+        while(commitSize < this->raft_->MemberMajority());
         if(result)
         {
             this->raft_->SetCommitIndex(index + 1);
