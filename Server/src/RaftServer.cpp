@@ -134,12 +134,20 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::LeaderLoop()
         return sharpen::TimerLoop::LoopStatus::Continue;
     }
     bool result{false};
+    std::size_t commitSize{0};
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_,std::adopt_lock};
+        std::uint64_t index{this->raft_->GetLastIndex()};
         result = this->ProposeAppendEntires();
-        if(result)
+        for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
         {
-            std::uint64_t index{this->raft_->GetLastIndex()};
+            if(begin->second.GetCurrentIndex() >= index)
+            {
+                ++commitSize;
+            }
+        }
+        if(result && commitSize >= this->raft_->MemberMajority())
+        {
             this->raft_->SetCommitIndex(index);
             this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
         }
