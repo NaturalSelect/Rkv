@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.14.0)
 
+if(MSVC)
+    add_definitions("-D_CRT_SECURE_NO_WARNINGS=1")
+endif()
+
 set(SHARPEN_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/lib/include")
 
 set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/Client/include") 

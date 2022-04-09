@@ -27,6 +27,11 @@ static void Entry()
         return;
     }
     std::vector<sharpen::IpEndPoint> ids;
+    std::puts("[Info]Server configurations are");
+    for (auto begin = lines.begin(),end = lines.end(); begin != end; ++begin)
+    {
+        std::printf("\t%s\n",begin->c_str());
+    }
     for (auto begin = lines.begin(),end = lines.end(); begin != end; ++begin)
     {
         try
