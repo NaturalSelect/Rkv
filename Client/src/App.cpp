@@ -97,7 +97,7 @@ static sharpen::ByteBuffer GetValue(sharpen::NetStreamChannelPtr channel,sharpen
     return response.Value();
 }
 
-static bool PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value)
+static rkv::MotifyResult PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value)
 {
     rkv::PutRequest request;
     request.Key() = std::move(key);
@@ -109,10 +109,10 @@ static bool PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer
     ReadMessage(channel,rkv::MessageType::PutResponse,buf);
     rkv::PutResponse response;
     response.Unserialize().LoadFrom(buf);
-    return response.Success();
+    return response.GetResult();
 }
 
-static bool DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
+static rkv::MotifyResult DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
 {
     rkv::DeleteRequest request;
     request.Key() = std::move(key);
@@ -123,7 +123,7 @@ static bool DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer k
     ReadMessage(channel,rkv::MessageType::DeleteResponse,buf);
     rkv::DeleteResponse response;
     response.Unserialize().LoadFrom(buf);
-    return response.Success();
+    return response.GetResult();
 }
 
 static void Entry(const char *ip,std::uint16_t port)
@@ -230,14 +230,28 @@ static void Entry(const char *ip,std::uint16_t port)
             std::memcpy(value.Data(),line.data() + last + 1,line.size() - last - 1);
             try
             {
-                bool result{PutKeyValue(channel,key,value)};
-                if(!result)
+                rkv::MotifyResult result{PutKeyValue(channel,key,value)};
+                switch (result)
                 {
-                    std::fprintf(stderr,"[Error]Cannot put the key and value\n");
-                    std::puts("[Info]Disconnect with leader");
+                case rkv::MotifyResult::NotCommit:
+                    {
+                        std::fprintf(stderr,"[Error]Cannot put the key and value\n");
+                        std::puts("[Info]Disconnect with leader");
+                    }
+                    break;
+                case rkv::MotifyResult::Commited:
+                    {
+                        
+                        std::puts("[Info]Operation commited");
+                    }
+                    break;
+                case rkv::MotifyResult::Appiled:
+                    {
+                        std::puts("[Info]Operation appiled");
+                    }
+                default:
                     break;
                 }
-                std::puts("[Info]Operation complete");
             }
             catch(const std::exception& e)
             {
@@ -252,14 +266,28 @@ static void Entry(const char *ip,std::uint16_t port)
             std::memcpy(key.Data(),line.data() + 7,line.size() - 7);
             try
             {
-                bool result{DeleteKey(channel,std::move(key))};
-                if(!result)
+                rkv::MotifyResult result{DeleteKey(channel,std::move(key))};
+                switch (result)
                 {
-                    std::fprintf(stderr,"[Error]Cannot delete key %s\n",line.data() + 7);
-                    std::puts("[Info]Disconnect with leader");
+                case rkv::MotifyResult::NotCommit:
+                    {
+                        std::fprintf(stderr,"[Error]Cannot put the key and value\n");
+                        std::puts("[Info]Disconnect with leader");
+                    }
+                    break;
+                case rkv::MotifyResult::Commited:
+                    {
+                        
+                        std::puts("[Info]Operation commited");
+                    }
+                    break;
+                case rkv::MotifyResult::Appiled:
+                    {
+                        std::puts("[Info]Operation appiled");
+                    }
+                default:
                     break;
                 }
-                std::puts("[Info]Operation complete");
             }
             catch(const std::exception& e)
             {

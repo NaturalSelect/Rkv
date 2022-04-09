@@ -4,6 +4,8 @@
 
 #include <sharpen/BinarySerializable.hpp>
 
+#include "MotifyResult.hpp"
+
 namespace rkv
 {
     class DeleteResponse:public sharpen::BinarySerializable<rkv::DeleteResponse>
@@ -11,13 +13,13 @@ namespace rkv
     private:
         using Self = rkv::DeleteResponse;
     
-        bool success_;
+        rkv::MotifyResult result_;
     public:
     
         DeleteResponse() = default;
 
-        explicit DeleteResponse(bool success)
-            :success_(success)
+        explicit DeleteResponse(rkv::MotifyResult result)
+            :result_(result)
         {}
     
         DeleteResponse(const Self &other) = default;
@@ -35,31 +37,26 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
-                this->success_ = other.success_;
+                this->result_ = other.result_;
             }
             return *this;
         }
     
         ~DeleteResponse() noexcept = default;
 
-        inline bool Success() const noexcept
+        inline rkv::MotifyResult GetResult() const noexcept
         {
-            return this->success_;
+            return this->result_;
         }
 
-        inline bool Fail() const noexcept
+        inline void SetResult(rkv::MotifyResult result) noexcept
         {
-            return !this->success_;
-        }
-
-        inline void SetResult(bool result) noexcept
-        {
-            this->success_ = result;
+            this->result_ = result;
         }
 
         static constexpr std::size_t ComputeSize() noexcept
         {
-            return sizeof(bool);
+            return sizeof(rkv::MotifyResult);
         }
 
         std::size_t LoadFrom(const char *data,std::size_t size);

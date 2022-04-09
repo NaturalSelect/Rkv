@@ -13,17 +13,17 @@
 #include "RaftMember.hpp"
 #include "RaftStorage.hpp"
 #include "KeyValueService.hpp"
-#include "RaftServerOption.hpp"
+#include "KvServerOption.hpp"
 
 namespace rkv
 {
-    class RaftServer:private sharpen::TcpServer
+    class KvServer:private sharpen::TcpServer
     {
     protected:
         
         virtual void OnNewChannel(sharpen::NetStreamChannelPtr channel) override;
     private:
-        using Self = rkv::RaftServer;
+        using Self = rkv::KvServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
         void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;
@@ -68,9 +68,9 @@ namespace rkv
         sharpen::TimerLoop leaderLoop_;
         sharpen::TimerLoop followerLoop_;
     public:
-        RaftServer(sharpen::EventEngine &engine,const rkv::RaftServerOption &option);
+        KvServer(sharpen::EventEngine &engine,const rkv::KvServerOption &option);
     
-        ~RaftServer() noexcept = default;
+        ~KvServer() noexcept = default;
 
         inline void RunAsync()
         {

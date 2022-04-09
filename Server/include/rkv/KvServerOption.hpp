@@ -9,10 +9,10 @@
 
 namespace rkv
 {
-    class RaftServerOption
+    class KvServerOption
     {
     private:
-        using Self = rkv::RaftServerOption;
+        using Self = rkv::KvServerOption;
         using MemberIds = std::vector<sharpen::IpEndPoint>;
     public:
         using Iterator = typename MemberIds::iterator;
@@ -24,7 +24,7 @@ namespace rkv
     public:
     
         template<typename _Iterator,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
-        RaftServerOption(const sharpen::IpEndPoint &selfId,_Iterator begin,_Iterator end)
+        KvServerOption(const sharpen::IpEndPoint &selfId,_Iterator begin,_Iterator end)
             :selfId_(selfId)
             ,memberIds_()
         {
@@ -40,9 +40,9 @@ namespace rkv
             }
         }
     
-        RaftServerOption(const Self &other) = default;
+        KvServerOption(const Self &other) = default;
     
-        RaftServerOption(Self &&other) noexcept = default;
+        KvServerOption(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -61,7 +61,7 @@ namespace rkv
             return *this;
         }
     
-        ~RaftServerOption() noexcept = default;
+        ~KvServerOption() noexcept = default;
         
         inline Iterator MembersBegin() noexcept
         {

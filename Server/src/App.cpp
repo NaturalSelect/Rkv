@@ -5,7 +5,7 @@
 #include <sharpen/FileOps.hpp>
 #include <sharpen/CtrlHandler.hpp>
 #include <sharpen/Converter.hpp>
-#include <rkv/RaftServer.hpp>
+#include <rkv/KvServer.hpp>
 
 template<typename _InserterIterator,typename _Check = decltype(*std::declval<_InserterIterator&>()++ = std::declval<std::string&>())>
 inline void ReadAllLines(_InserterIterator inserter,const char *filename)
@@ -64,7 +64,7 @@ static sharpen::IpEndPoint ConvertStringToEndPoint(const std::string &str)
     return ep;
 }
 
-static void StopServer(rkv::RaftServer *server)
+static void StopServer(rkv::KvServer *server)
 {
     assert(server != nullptr);
     server->Stop();
@@ -118,11 +118,11 @@ static void Entry()
             return;
         }
     }
-    rkv::RaftServerOption opt{id,members.begin(),members.end()};
+    rkv::KvServerOption opt{id,members.begin(),members.end()};
     //start server
     std::puts("[Info]Start server");
     std::puts("[Info]Please use ctrl+c to stop server");
-    rkv::RaftServer server{sharpen::EventEngine::GetEngine(),opt};
+    rkv::KvServer server{sharpen::EventEngine::GetEngine(),opt};
     sharpen::RegisterCtrlHandler(sharpen::CtrlType::Interrupt,std::bind(&StopServer,&server));
     server.RunAsync();
     std::puts("[Info]Server Stopped");

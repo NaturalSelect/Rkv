@@ -1,4 +1,4 @@
-#include <rkv/RaftServer.hpp>
+#include <rkv/KvServer.hpp>
 
 #include <sharpen/Quorum.hpp>
 #include <sharpen/FileOps.hpp>
@@ -16,7 +16,7 @@
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
 
-rkv::RaftServer::RaftServer(sharpen::EventEngine &engine,const rkv::RaftServerOption &option)
+rkv::KvServer::KvServer(sharpen::EventEngine &engine,const rkv::KvServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
     ,random_(std::random_device{}())
     ,distribution_(Self::followerMinWaitMs,Self::followerMaxWaitMs)
@@ -41,20 +41,20 @@ rkv::RaftServer::RaftServer(sharpen::EventEngine &engine,const rkv::RaftServerOp
     }
 }
 
-std::chrono::milliseconds rkv::RaftServer::GenerateWaitTime() const
+std::chrono::milliseconds rkv::KvServer::GenerateWaitTime() const
 {
     std::uint32_t waitMs{this->distribution_(this->random_)};
     std::printf("[Info]Need to wait %u ms\n",waitMs);
     return std::chrono::milliseconds{waitMs};
 }
 
-void rkv::RaftServer::RequestVoteCallback() noexcept
+void rkv::KvServer::RequestVoteCallback() noexcept
 {
     std::unique_lock<sharpen::SpinLock> lock{this->voteLock_};
     this->raft_->ReactVote(1);
 }
 
-sharpen::TimerLoop::LoopStatus rkv::RaftServer::FollowerLoop()
+sharpen::TimerLoop::LoopStatus rkv::KvServer::FollowerLoop()
 {
     if(this->raft_->GetRole() == sharpen::RaftRole::Leader)
     {
@@ -98,7 +98,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::FollowerLoop()
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
-bool rkv::RaftServer::ProposeAppendEntires()
+bool rkv::KvServer::ProposeAppendEntires()
 {
     rkv::LogProposal proposal{const_cast<const Raft*>(this->raft_.get())->PersistenceStorage()};
     proposal.SetCommitIndex(this->raft_->GetCommitIndex());
@@ -122,7 +122,7 @@ bool rkv::RaftServer::ProposeAppendEntires()
     return result;
 }
 
-sharpen::TimerLoop::LoopStatus rkv::RaftServer::LeaderLoop()
+sharpen::TimerLoop::LoopStatus rkv::KvServer::LeaderLoop()
 {
     if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
     {
@@ -155,7 +155,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftServer::LeaderLoop()
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
-void rkv::RaftServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
+void rkv::KvServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
 {
     rkv::LeaderRedirectResponse response;
     response.SetKnowLeader(this->raft_->KnowLeader());
@@ -170,7 +170,7 @@ void rkv::RaftServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) cons
     channel.WriteAsync(buf,sz);
 }
 
-void rkv::RaftServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const
+void rkv::KvServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const
 {
     rkv::GetRequest request;
     request.Unserialize().LoadFrom(buf);
@@ -207,9 +207,9 @@ void rkv::RaftServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::B
     channel.WriteAsync(resBuf);
 }
 
-void rkv::RaftServer::OnPutFail(sharpen::INetStreamChannel &channel)
+void rkv::KvServer::OnPutFail(sharpen::INetStreamChannel &channel)
 {
-    rkv::PutResponse response{false};
+    rkv::PutResponse response{rkv::MotifyResult::NotCommit};
     char resBuf[sizeof(std::uint64_t)];
     std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
@@ -217,7 +217,7 @@ void rkv::RaftServer::OnPutFail(sharpen::INetStreamChannel &channel)
     channel.WriteAsync(resBuf,sz);
 }
 
-void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
     {
@@ -272,7 +272,7 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
             this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
         }
     }
-    rkv::PutResponse response{result};
+    rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
     char resBuf[sizeof(std::uint64_t)];
     std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
@@ -280,9 +280,9 @@ void rkv::RaftServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::B
     channel.WriteAsync(resBuf,sz);
 }
 
-void rkv::RaftServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
+void rkv::KvServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
 {
-    rkv::PutResponse response{false};
+    rkv::PutResponse response{rkv::MotifyResult::NotCommit};
     char resBuf[sizeof(std::uint64_t)];
     std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
@@ -290,7 +290,7 @@ void rkv::RaftServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
     channel.WriteAsync(resBuf,sz);
 }
 
-void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
     {
@@ -332,7 +332,7 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
             this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
         }
     }
-    rkv::PutResponse response{result};
+    rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
     char resBuf[sizeof(std::uint64_t)];
     std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
@@ -340,7 +340,7 @@ void rkv::RaftServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen
     channel.WriteAsync(resBuf,sz);
 }
 
-void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     this->followerLoop_.Cancel();
     rkv::AppendEntiresRequest request;
@@ -373,7 +373,7 @@ void rkv::RaftServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const 
     channel.WriteAsync(resBuf);
 }
 
-void rkv::RaftServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::KvServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     rkv::VoteRequest request;
     request.Unserialize().LoadFrom(buf);
@@ -402,7 +402,7 @@ void rkv::RaftServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sh
     channel.WriteAsync(resBuf);
 }
 
-void rkv::RaftServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
+void rkv::KvServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
     {
