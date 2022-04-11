@@ -15,12 +15,17 @@ namespace rkv
     private:
         using Self = rkv::KeyValueService;
     
-        sharpen::LevelTable table_;
+        std::unique_ptr<sharpen::LevelTable> table_;
     public:
     
         KeyValueService(sharpen::EventEngine &eng,const std::string &dbName)
-            :table_(eng,dbName,"kvdb")
-        {}
+            :table_(new sharpen::LevelTable{eng,dbName,"kvdb"})
+        {
+            if(!this->table_)
+            {
+                throw std::bad_alloc();
+            }
+        }
     
         KeyValueService(Self &&other) noexcept = default;
     
@@ -37,22 +42,22 @@ namespace rkv
 
         inline sharpen::ByteBuffer Get(const sharpen::ByteBuffer &key) const
         {
-            return this->table_.Get(key);
+            return this->table_->Get(key);
         }
 
         inline sharpen::Optional<sharpen::ByteBuffer> TryGet(const sharpen::ByteBuffer &key) const
         {
-            return this->table_.TryGet(key);
+            return this->table_->TryGet(key);
         }
 
         inline void Put(sharpen::ByteBuffer key,sharpen::ByteBuffer value)
         {
-            this->table_.Put(std::move(key),std::move(value));
+            this->table_->Put(std::move(key),std::move(value));
         }
 
         inline void Delete(sharpen::ByteBuffer key)
         {
-            this->table_.Delete(std::move(key));
+            this->table_->Delete(std::move(key));
         }
 
         void Apply(rkv::RaftLog log);

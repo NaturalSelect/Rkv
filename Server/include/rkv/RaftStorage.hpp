@@ -16,7 +16,7 @@ namespace rkv
     private:
         using Self = rkv::RaftStorage;
     
-        sharpen::LevelTable table_;
+        std::unique_ptr<sharpen::LevelTable> table_;
 
         static sharpen::ByteBuffer countkey_;
 
@@ -34,7 +34,7 @@ namespace rkv
     public:
     
         explicit RaftStorage(sharpen::EventEngine &eng,const std::string &logName)
-            :table_(eng,logName,"logdb")
+            :table_(new sharpen::LevelTable{eng,logName,"logdb"})
         {
             using FnPtr = void(*)();
             std::call_once(Self::flag_,static_cast<FnPtr>(&Self::InitKeys));

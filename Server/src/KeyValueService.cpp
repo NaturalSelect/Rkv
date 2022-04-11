@@ -19,7 +19,7 @@ void rkv::KeyValueService::Apply(rkv::RaftLog log)
                     std::putchar(log.Value()[i]);
                 }
                 std::putchar('\n');
-                this->table_.Put(std::move(log.Key()),std::move(log.Value()));
+                this->Put(std::move(log.Key()),std::move(log.Value()));
             }
         }
         break;
@@ -31,7 +31,7 @@ void rkv::KeyValueService::Apply(rkv::RaftLog log)
                 std::putchar(log.Key()[i]);
             }
             std::putchar('\n');
-            this->table_.Delete(log.Key());
+            this->Delete(log.Key());
         }
         break;
     }

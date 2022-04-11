@@ -6,7 +6,7 @@ enable_testing()
 
 include(FetchContent)
 
-fetchcontent_declare(sharpen GIT_REPOSITORY "http://github.com/KnownSpace/Sharpen" GIT_TAG "1.0.2-preview-23" SOURCE_DIR "${PROJECT_SOURCE_DIR}/lib")
+fetchcontent_declare(sharpen GIT_REPOSITORY "http://github.com/KnownSpace/Sharpen" GIT_TAG "1.0.2" SOURCE_DIR "${PROJECT_SOURCE_DIR}/lib")
 fetchcontent_makeavailable(sharpen)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/Shared/src")
