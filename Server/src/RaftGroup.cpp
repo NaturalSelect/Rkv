@@ -35,7 +35,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
     if(result)
     {
         std::printf("[Info]Become leader of term %llu\n",this->raft_.GetCurrentTerm());
-        this->leaderLoop_.Start();
+        this->leaderLoop_->Start();
         finish.WaitAsync();
         std::puts("[Info]Follower loop terminate");
         return sharpen::TimerLoop::LoopStatus::Terminate;
@@ -80,7 +80,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::LeaderLoop() noexcept
 {
     if(this->raft_.GetRole() != sharpen::RaftRole::Leader)
     {
-        this->followerLoop_.Start();
+        this->followerLoop_->Start();
         return sharpen::TimerLoop::LoopStatus::Terminate;
     }
     if(!this->raftLock_->TryLock())

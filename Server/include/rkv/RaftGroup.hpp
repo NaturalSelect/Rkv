@@ -49,8 +49,8 @@ namespace rkv
         std::unique_ptr<RaftLock> raftLock_;
         std::unique_ptr<VoteLock> voteLock_;
         sharpen::TimerPtr proposeTimer_;
-        sharpen::TimerLoop leaderLoop_;
-        sharpen::TimerLoop followerLoop_;
+        std::unique_ptr<sharpen::TimerLoop> leaderLoop_;
+        std::unique_ptr<sharpen::TimerLoop> followerLoop_;
     public:
     
         RaftGroup(sharpen::EventEngine &engine,const sharpen::IpEndPoint &id,rkv::RaftStorage storage,std::shared_ptr<rkv::KeyValueService> app)
@@ -60,10 +60,13 @@ namespace rkv
             ,raftLock_(new RaftLock{})
             ,voteLock_{new VoteLock{}}
             ,proposeTimer_(sharpen::MakeTimer(engine))
-            ,leaderLoop_(engine,sharpen::MakeTimer(engine),std::chrono::milliseconds{Self::leaderMaxWaitMs_},std::bind(&Self::LeaderLoop,this))
-            ,followerLoop_(engine,sharpen::MakeTimer(engine),std::bind(&Self::FollowerLoop,this),std::bind(&Self::GenerateElectionWaitTime,this))
+            ,leaderLoop_(nullptr)
+            ,followerLoop_(nullptr)
         {
-            if(!this->raftLock_ || !this->voteLock_)
+            this->leaderLoop_.reset(new sharpen::TimerLoop{engine,sharpen::MakeTimer(engine),std::chrono::milliseconds{Self::leaderMaxWaitMs_},std::bind(&Self::LeaderLoop,this)});
+            this->followerLoop_.reset(new sharpen::TimerLoop{engine,sharpen::MakeTimer(engine),std::bind(&Self::FollowerLoop,this),std::bind(&Self::GenerateElectionWaitTime,this)});
+            std::is_move_constructible<sharpen::TimerLoop>::value;
+            if(!this->raftLock_ || !this->voteLock_ || !this->leaderLoop_ || !this->followerLoop_)
             {
                 throw std::bad_alloc();
             }
@@ -101,20 +104,20 @@ namespace rkv
         {
             if(this->raft_.GetRole() == sharpen::RaftRole::Follower)
             {
-                return this->followerLoop_.Cancel();
+                return this->followerLoop_->Cancel();
             }
-            return this->leaderLoop_.Cancel();
+            return this->leaderLoop_->Cancel();
         }
 
         inline void Start()
         {
-            this->followerLoop_.Start();
+            this->followerLoop_->Start();
         }
 
         inline void Stop() noexcept
         {
-            this->followerLoop_.Terminate();
-            this->leaderLoop_.Terminate();
+            this->followerLoop_->Terminate();
+            this->leaderLoop_->Terminate();
         }
 
         inline RaftLock &GetRaftLock() const noexcept
