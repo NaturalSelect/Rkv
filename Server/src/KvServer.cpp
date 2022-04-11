@@ -18,150 +18,34 @@
 
 rkv::KvServer::KvServer(sharpen::EventEngine &engine,const rkv::KvServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
-    ,random_(std::random_device{}())
-    ,distribution_(Self::followerMinWaitMs,Self::followerMaxWaitMs)
     ,app_(nullptr)
-    ,raft_(nullptr)
-    ,voteLock_()
-    ,proposeTimer_(sharpen::MakeTimer(engine))
-    ,leaderLoop_(engine,sharpen::MakeTimer(engine),std::chrono::milliseconds{Self::leaderMaxWaitMs},std::bind(&Self::LeaderLoop,this))
-    ,followerLoop_(engine,sharpen::MakeTimer(engine),std::bind(&Self::FollowerLoop,this),std::bind(&Self::GenerateWaitTime,this))
+    ,group_(nullptr)
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
     sharpen::MakeDirectory("./Storage");
     this->app_ = std::make_shared<rkv::KeyValueService>(engine,"./Storage/Kvdb");
-    this->raft_.reset(new Raft{option.SelfId(),rkv::RaftStorage{engine,"./Storage/Raft"},this->app_});
-    std::uint64_t lastAppiled{this->raft_->GetLastApplied()};
+    this->group_.reset(new rkv::RaftGroup{engine,option.SelfId(),rkv::RaftStorage{engine,"./Storage/Raft"},this->app_});
+    if(!this->group_)
+    {
+        throw std::bad_alloc();
+    }
+    std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
     for (auto begin = option.MembersBegin(),end = option.MembersEnd(); begin != end; ++begin)
     {
         rkv::RaftMember member{*begin,engine};
         member.SetCurrentIndex(lastAppiled);
-        this->raft_->Members().emplace(*begin,std::move(member));
+        this->group_->Raft().Members().emplace(*begin,std::move(member));
     }
-}
-
-std::chrono::milliseconds rkv::KvServer::GenerateWaitTime() const
-{
-    std::uint32_t waitMs{this->distribution_(this->random_)};
-    std::printf("[Info]Need to wait %u ms\n",waitMs);
-    return std::chrono::milliseconds{waitMs};
-}
-
-void rkv::KvServer::RequestVoteCallback() noexcept
-{
-    std::unique_lock<sharpen::SpinLock> lock{this->voteLock_};
-    this->raft_->ReactVote(1);
-}
-
-sharpen::TimerLoop::LoopStatus rkv::KvServer::FollowerLoop()
-{
-    if(this->raft_->GetRole() == sharpen::RaftRole::Leader)
-    {
-        return sharpen::TimerLoop::LoopStatus::Terminate;
-    }
-    rkv::VoteProposal proposal;
-    {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
-        this->raft_->RaiseElection();
-        proposal.SetTerm(this->raft_->GetCurrentTerm());
-        proposal.SetLastIndex(this->raft_->GetLastIndex());
-        proposal.SetLastTerm(this->raft_->GetLastTerm());
-    }
-    proposal.Id() = this->raft_->GetSelfId();
-    proposal.Callback() = std::bind(&Self::RequestVoteCallback,this);
-    sharpen::AwaitableFuture<bool> continuation;
-    sharpen::AwaitableFuture<void> finish;
-    std::puts("[Info]Try to request vote from other members");
-    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::electionMaxWaitMs},this->raft_->Members().begin(),this->raft_->Members().end(),proposal,continuation,finish);
-    continuation.Await();
-    bool result{false};
-    {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
-        result = this->raft_->StopElection();
-        if(!result)
-        {
-            this->raft_->ReactNewTerm(proposal.GetMaxTerm());
-        }
-    }
-    if(result)
-    {
-        std::printf("[Info]Become leader of term %llu\n",this->raft_->GetCurrentTerm());
-        this->leaderLoop_.Start();
-        finish.WaitAsync();
-        std::puts("[Info]Follower loop terminate");
-        return sharpen::TimerLoop::LoopStatus::Terminate;
-    }
-    std::puts("[Info]Election failure");
-    finish.WaitAsync();
-    std::puts("[Info]Follower loop continue");
-    return sharpen::TimerLoop::LoopStatus::Continue;
-}
-
-bool rkv::KvServer::ProposeAppendEntires()
-{
-    rkv::LogProposal proposal{const_cast<const Raft*>(this->raft_.get())->PersistenceStorage()};
-    proposal.SetCommitIndex(this->raft_->GetCommitIndex());
-    proposal.SetTerm(this->raft_->GetCurrentTerm());
-    proposal.Id() = this->raft_->GetSelfId();
-    sharpen::AwaitableFuture<bool> continuation;
-    sharpen::AwaitableFuture<void> finish;
-    std::puts("[Info]Try to append entries to other members");
-    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::appendEntriesMaxWaitMs},this->raft_->Members().begin(),this->raft_->Members().end(),proposal,continuation,finish);
-    bool result{continuation.Await()};
-    if(!result)
-    {
-        std::fputs("[Error]Append entires to other members failure\n",stderr);
-    }
-    else
-    {
-        std::puts("[Info]Append entires to other members success");
-    }
-    finish.WaitAsync();
-    this->raft_->ReactNewTerm(proposal.GetMaxTerm());
-    return result;
-}
-
-sharpen::TimerLoop::LoopStatus rkv::KvServer::LeaderLoop()
-{
-    if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
-    {
-        this->followerLoop_.Start();
-        return sharpen::TimerLoop::LoopStatus::Terminate;
-    }
-    if(!this->raftLock_.TryLock())
-    {
-        return sharpen::TimerLoop::LoopStatus::Continue;
-    }
-    bool result{false};
-    std::size_t commitSize{0};
-    {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_,std::adopt_lock};
-        std::uint64_t index{this->raft_->GetLastIndex()};
-        result = this->ProposeAppendEntires();
-        for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
-        {
-            if(begin->second.GetCurrentIndex() >= index)
-            {
-                ++commitSize;
-            }
-        }
-        if(result && commitSize >= this->raft_->MemberMajority())
-        {
-            this->raft_->SetCommitIndex(index);
-            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
-        }
-    }
-    return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
 void rkv::KvServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
 {
     rkv::LeaderRedirectResponse response;
-    response.SetKnowLeader(this->raft_->KnowLeader());
+    response.SetKnowLeader(this->group_->Raft().KnowLeader());
     if(response.KnowLeader())
     {
-        response.Endpoint() = this->raft_->GetLeaderId();
+        response.Endpoint() = this->group_->Raft().GetLeaderId();
     }
     char buf[sizeof(bool) + sizeof(sharpen::IpEndPoint)];
     std::size_t sz{response.StoreTo(buf,sizeof(buf))};
@@ -219,7 +103,7 @@ void rkv::KvServer::OnPutFail(sharpen::INetStreamChannel &channel)
 
 void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
+    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
     {
         return this->OnPutFail(channel);
     }
@@ -242,22 +126,24 @@ void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::Byt
     std::putchar('\n');
     bool result{false};
     std::size_t commitSize{0};
-    this->leaderLoop_.Cancel();
+    //this->leaderLoop_.Cancel();
+    this->group_->Tick();
     {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
-        std::uint64_t index{this->raft_->GetLastIndex()};
+        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
+        std::uint64_t index{this->group_->Raft().GetLastIndex()};
         log.SetIndex(index + 1);
-        log.SetTerm(this->raft_->GetCurrentTerm());
-        this->raft_->AppendLog(std::move(log));
+        log.SetTerm(this->group_->Raft().GetCurrentTerm());
+        this->group_->Raft().AppendLog(std::move(log));
         do
         {
             commitSize = 0;
-            result = this->ProposeAppendEntires();
+            //result = this->ProposeAppendEntires();
+            result = this->group_->ProposeAppendEntires();
             if(!result)
             {
                 break;
             }
-            for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
+            for (auto begin = this->group_->Raft().Members().begin(),end = this->group_->Raft().Members().end(); begin != end; ++begin)
             {
                 if(begin->second.GetCurrentIndex() >= index + 1)
                 {
@@ -265,11 +151,11 @@ void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::Byt
                 }
             }
         }
-        while(commitSize < this->raft_->MemberMajority());
+        while(commitSize < this->group_->Raft().MemberMajority());
         if(result)
         {
-            this->raft_->SetCommitIndex(index + 1);
-            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
+            this->group_->Raft().SetCommitIndex(index + 1);
+            this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
         }
     }
     rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
@@ -292,7 +178,7 @@ void rkv::KvServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
 
 void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    if(this->raft_->GetRole() != sharpen::RaftRole::Leader)
+    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
     {
         return this->OnDeleteFail(channel);
     }
@@ -304,20 +190,20 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
     bool result{false};
     std::size_t commitSize{0};
     {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->raftLock_};
-        std::uint64_t index{this->raft_->GetLastIndex()};
+        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
+        std::uint64_t index{this->group_->Raft().GetLastIndex()};
         log.SetIndex(index + 1);
-        log.SetTerm(this->raft_->GetCurrentTerm());
-        this->raft_->AppendLog(std::move(log));
+        log.SetTerm(this->group_->Raft().GetCurrentTerm());
+        this->group_->Raft().AppendLog(std::move(log));
         do
         {
             commitSize = 0;
-            result = this->ProposeAppendEntires();
+            result = this->group_->ProposeAppendEntires();
             if(!result)
             {
                 break;
             }
-            for (auto begin = this->raft_->Members().begin(),end = this->raft_->Members().end(); begin != end; ++begin)
+            for (auto begin = this->group_->Raft().Members().begin(),end = this->group_->Raft().Members().end(); begin != end; ++begin)
             {
                 if(begin->second.GetCurrentIndex() >= index + 1)
                 {
@@ -325,11 +211,11 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
                 }
             }
         }
-        while(commitSize < this->raft_->MemberMajority());
+        while(commitSize < this->group_->Raft().MemberMajority());
         if(result)
         {
-            this->raft_->SetCommitIndex(index + 1);
-            this->raft_->ApplyLogs(Raft::LostPolicy::Ignore);
+            this->group_->Raft().SetCommitIndex(index + 1);
+            this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
         }
     }
     rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
@@ -342,7 +228,8 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
 
 void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    this->followerLoop_.Cancel();
+    // this->followerLoop_.Cancel();
+    this->group_->Tick();
     rkv::AppendEntiresRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
@@ -350,9 +237,9 @@ void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sh
     std::uint64_t lastAppiled{0};
     std::printf("[Info]Channel want to append entries to host term is %llu prev log index is %llu prev log term is %llu commit index is %llu\n",request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
     {
-        result = this->raft_->AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
-        currentTerm = this->raft_->GetCurrentTerm();
-        lastAppiled = this->raft_->GetLastApplied();
+        result = this->group_->Raft().AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
+        currentTerm = this->group_->Raft().GetCurrentTerm();
+        lastAppiled = this->group_->Raft().GetLastApplied();
     }
     if(result)
     {
@@ -380,8 +267,8 @@ void rkv::KvServer::OnRequestVote(sharpen::INetStreamChannel &channel,const shar
     bool result{false};
     std::uint64_t currentTerm{0};
     {
-        result = this->raft_->RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
-        currentTerm = this->raft_->GetCurrentTerm();
+        result = this->group_->Raft().RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
+        currentTerm = this->group_->Raft().GetCurrentTerm();
     }
     std::printf("[Info]Candidate want to get vote from host term is %llu last log index is %llu last log term is %llu\n",request.GetTerm(),request.GetLastIndex(),request.GetLastTerm());
     if(result)
