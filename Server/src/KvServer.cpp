@@ -125,8 +125,7 @@ void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::Byt
     std::putchar('\n');
     bool result{false};
     std::size_t commitSize{0};
-    //this->leaderLoop_.Cancel();
-    this->group_->Tick();
+    this->group_->DelayCycle();
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
         std::uint64_t index{this->group_->Raft().GetLastIndex()};
@@ -227,8 +226,7 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
 
 void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    // this->followerLoop_.Cancel();
-    this->group_->Tick();
+    this->group_->DelayCycle();
     rkv::AppendEntiresRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
