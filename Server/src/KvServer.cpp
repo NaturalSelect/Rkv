@@ -23,7 +23,6 @@ rkv::KvServer::KvServer(sharpen::EventEngine &engine,const rkv::KvServerOption &
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
-    sharpen::MakeDirectory("./Storage");
     this->app_ = std::make_shared<rkv::KeyValueService>(engine,"./Storage/Kvdb");
     this->group_.reset(new rkv::RaftGroup{engine,option.SelfId(),rkv::RaftStorage{engine,"./Storage/Raft"},this->app_});
     if(!this->group_)
