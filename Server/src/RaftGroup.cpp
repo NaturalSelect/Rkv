@@ -2,7 +2,7 @@
 
 #include <sharpen/Quorum.hpp>
 
-sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop()
+sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
 {
     if(this->raft_.GetRole() == sharpen::RaftRole::Leader)
     {
@@ -76,7 +76,7 @@ void rkv::RaftGroup::RequestVoteCallback() noexcept
     this->raft_.ReactVote(1);
 }
 
-sharpen::TimerLoop::LoopStatus rkv::RaftGroup::LeaderLoop()
+sharpen::TimerLoop::LoopStatus rkv::RaftGroup::LeaderLoop() noexcept
 {
     if(this->raft_.GetRole() != sharpen::RaftRole::Leader)
     {
