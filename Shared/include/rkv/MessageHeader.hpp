@@ -19,7 +19,8 @@ namespace rkv
         PutRequest,
         PutResponse,
         DeleteReqeust,
-        DeleteResponse
+        DeleteResponse,
+        SetupNewRaft
     };
 
     struct MessageHeader

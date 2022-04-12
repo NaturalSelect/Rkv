@@ -52,7 +52,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
 
 bool rkv::RaftGroup::ProposeAppendEntires()
 {
-    rkv::LogProposal proposal{const_cast<const RaftType*>(&this->raft_)->PersistenceStorage()};
+    rkv::LogProposal proposal{this->raft_.GetPersistenceStorage()};
     proposal.SetCommitIndex(this->raft_.GetCommitIndex());
     proposal.SetTerm(this->raft_.GetCurrentTerm());
     proposal.Id() = this->raft_.GetSelfId();

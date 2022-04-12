@@ -8,7 +8,8 @@ namespace rkv
     {
         NotCommit,
         Commited,
-        Appiled
+        Appiled,
+        NotStore
     };   
 }
 
