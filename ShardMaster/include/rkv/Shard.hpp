@@ -14,10 +14,10 @@ namespace rkv
     {
     private:
         using Self = rkv::Shard;
-        using Workers = std::vector<sharpen::IpEndPoint>;
+        using WorkersType = std::vector<sharpen::IpEndPoint>;
     
         sharpen::ByteBuffer key_;
-        Workers workers_;
+        WorkersType workers_;
     public:
     
         Shard() = default;
@@ -66,12 +66,12 @@ namespace rkv
             return this->key_;
         }
 
-        inline Workers &Workers() noexcept
+        inline WorkersType &Workers() noexcept
         {
             return this->workers_;
         }
 
-        inline const Workers &Workers() const noexcept
+        inline const WorkersType &Workers() const noexcept
         {
             return this->workers_;
         }

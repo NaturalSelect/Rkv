@@ -14,6 +14,7 @@
 #include <rkv/RaftStorage.hpp>
 #include <rkv/RaftGroup.hpp>
 #include <rkv/KeyValueService.hpp>
+#include <rkv/ShardSet.hpp>
 
 #include "MasterServerOption.hpp"
 
@@ -47,6 +48,7 @@ namespace rkv
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         std::vector<sharpen::IpEndPoint> workers_;
+        rkv::ShardSet shards_;
     public:
         MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option);
     

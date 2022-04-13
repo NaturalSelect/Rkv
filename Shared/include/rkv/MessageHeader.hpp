@@ -20,6 +20,8 @@ namespace rkv
         PutResponse,
         DeleteReqeust,
         DeleteResponse,
+        GetShard,
+        PutShard,
         SetupNewRaft
     };
 
