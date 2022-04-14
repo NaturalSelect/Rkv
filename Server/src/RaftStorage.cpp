@@ -13,7 +13,7 @@ std::once_flag rkv::RaftStorage::flag_;
 sharpen::ByteBuffer rkv::RaftStorage::FormatLogKey(std::uint64_t index)
 {
     sharpen::ByteBuffer key{sizeof(index)};
-    key.As<sharpen::Uint64>() = index;
+    key.As<std::uint64_t>() = index;
     return key;
 }
 

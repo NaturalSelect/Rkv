@@ -14,9 +14,9 @@
 #include <rkv/RaftStorage.hpp>
 #include <rkv/RaftGroup.hpp>
 #include <rkv/KeyValueService.hpp>
-#include <rkv/Shard.hpp>
 
 #include "MasterServerOption.hpp"
+#include "ShardManger.hpp"
 
 namespace rkv
 {
@@ -37,10 +37,15 @@ namespace rkv
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
+        void OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnGetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         std::vector<sharpen::IpEndPoint> workers_;
-        std::vector<rkv::Shard> shards_;
+        sharpen::AsyncReadWriteLock shardsLock_;
+        std::unique_ptr<rkv::ShardManger> shards_;
     public:
         MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option);
     

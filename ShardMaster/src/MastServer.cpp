@@ -20,13 +20,16 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
     ,app_(nullptr)
     ,group_(nullptr)
+    ,shards_(nullptr)
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
     this->app_ = std::make_shared<rkv::KeyValueService>(engine,"./Storage/Masterdb");
     //create master group
     this->group_.reset(new rkv::RaftGroup{engine,option.SelfId(),rkv::RaftStorage{engine,"./Storage/MasterRaft"},this->app_});
-    if(!this->group_)
+    //create shard manager
+    this->shards_.reset(new rkv::ShardManger{*this->app_});
+    if(!this->group_ || !this->shards_)
     {
         throw std::bad_alloc();
     }
@@ -36,18 +39,6 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
         rkv::RaftMember member{*begin,engine};
         member.SetCurrentIndex(lastAppiled);
         this->group_->Raft().Members().emplace(*begin,std::move(member));
-    }
-    //load shard
-    sharpen::Optional<sharpen::ByteBuffer> shardsBuf{this->app_->Get(Self::shardsKey_)};
-    if(shardsBuf.Exist())
-    {
-        sharpen::BinarySerializator::LoadFrom(this->shards_,shardsBuf.Get());
-    }
-    else
-    {
-        shardsBuf.Construct();
-        sharpen::BinarySerializator::StoreTo(this->shards_,shardsBuf.Get());
-        this->app_->Put(Self::shardsKey_,std::move(shardsBuf.Get()));
     }
     //load workers
     for (auto begin = option.WorkersBegin(),end = option.WorkersEnd(); begin != end; ++begin)
@@ -89,6 +80,12 @@ void rkv::MasterServer::OnAppendEntires(sharpen::INetStreamChannel &channel,cons
     if(result)
     {
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
+        std::puts("[Info]Flush shards");
+        {
+            this->shardsLock_.LockWrite();
+            std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+            this->shards_->Flush();
+        }
     }
     else
     {
