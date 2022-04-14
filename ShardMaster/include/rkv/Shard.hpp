@@ -18,7 +18,6 @@ namespace rkv
     
         std::uint64_t id_;
         sharpen::ByteBuffer beginKey_;
-        sharpen::ByteBuffer endKey_;
         WorkersType workers_;
     public:
     
@@ -58,15 +57,15 @@ namespace rkv
 
         std::size_t UnsafeStoreTo(char *data) const noexcept;
 
-        // inline sharpen::ByteBuffer &Key() noexcept
-        // {
-        //     return this->key_;
-        // }
+        inline sharpen::ByteBuffer &BeginKey() noexcept
+        {
+            return this->beginKey_;
+        }
 
-        // inline const sharpen::ByteBuffer &Key() const noexcept
-        // {
-        //     return this->key_;
-        // }
+        inline const sharpen::ByteBuffer &BeginKey() const noexcept
+        {
+            return this->beginKey_;
+        }
 
         inline WorkersType &Workers() noexcept
         {

@@ -37,6 +37,18 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
         member.SetCurrentIndex(lastAppiled);
         this->group_->Raft().Members().emplace(*begin,std::move(member));
     }
+    //load shard
+    sharpen::Optional<sharpen::ByteBuffer> shardsBuf{this->app_->Get(Self::shardsKey_)};
+    if(shardsBuf.Exist())
+    {
+        sharpen::BinarySerializator::LoadFrom(this->shards_,shardsBuf.Get());
+    }
+    else
+    {
+        shardsBuf.Construct();
+        sharpen::BinarySerializator::StoreTo(this->shards_,shardsBuf.Get());
+        this->app_->Put(Self::shardsKey_,std::move(shardsBuf.Get()));
+    }
     //load workers
     for (auto begin = option.WorkersBegin(),end = option.WorkersEnd(); begin != end; ++begin)
     {
@@ -58,176 +70,6 @@ void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) co
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectResponse,sz)};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(buf,sz);
-}
-
-void rkv::MasterServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const
-{
-    rkv::GetRequest request;
-    request.Unserialize().LoadFrom(buf);
-    rkv::GetResponse response;
-    sharpen::Optional<sharpen::ByteBuffer> val{this->app_->TryGet(request.Key())};
-    if(!val.Exist())
-    {
-        std::fputs("[Info]Try to get a not-existed key ",stdout);
-        for (std::size_t i = 0; i != request.Key().GetSize(); ++i)
-        {
-            std::putchar(request.Key()[i]);
-        }
-        std::putchar('\n');
-    }
-    else
-    {
-        response.Value() = std::move(val.Get());
-        std::fputs("[Info]Try to get a key value pair and key is ",stdout);
-        for (std::size_t i = 0; i != request.Key().GetSize(); ++i)
-        {
-            std::putchar(request.Key()[i]);
-        }
-        std::fputs(" value is ",stdout);
-        for (std::size_t i = 0; i != response.Value().GetSize(); ++i)
-        {
-            std::putchar(response.Value()[i]);
-        }
-        std::putchar('\n');
-    }
-    sharpen::ByteBuffer resBuf;
-    response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetResponse,resBuf.GetSize())};
-    channel.WriteObjectAsync(header);
-    channel.WriteAsync(resBuf);
-}
-
-void rkv::MasterServer::OnPutFail(sharpen::INetStreamChannel &channel)
-{
-    rkv::PutResponse response{rkv::MotifyResult::NotCommit};
-    char resBuf[sizeof(std::uint64_t)];
-    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
-    channel.WriteObjectAsync(header);
-    channel.WriteAsync(resBuf,sz);
-}
-
-void rkv::MasterServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
-{
-    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
-    {
-        return this->OnPutFail(channel);
-    }
-    rkv::PutRequest request;
-    request.Unserialize().LoadFrom(buf);
-    rkv::RaftLog log;
-    log.SetOperation(rkv::RaftLog::Operation::Put);
-    log.Key() = std::move(request.Key());
-    log.Value() = std::move(request.Value());
-    std::fputs("[Info]Try to put key is ",stdout);
-    for (std::size_t i = 0; i != log.Key().GetSize(); ++i)
-    {
-        std::putchar(log.Key()[i]);
-    }
-    std::fputs(" value is ",stdout);
-    for (std::size_t i = 0; i != log.Value().GetSize(); ++i)
-    {
-        std::putchar(log.Value()[i]);
-    }
-    std::putchar('\n');
-    bool result{false};
-    std::size_t commitSize{0};
-    this->group_->DelayCycle();
-    {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
-        std::uint64_t index{this->group_->Raft().GetLastIndex()};
-        log.SetIndex(index + 1);
-        log.SetTerm(this->group_->Raft().GetCurrentTerm());
-        this->group_->Raft().AppendLog(std::move(log));
-        do
-        {
-            commitSize = 0;
-            result = this->group_->ProposeAppendEntires();
-            if(!result)
-            {
-                break;
-            }
-            for (auto begin = this->group_->Raft().Members().begin(),end = this->group_->Raft().Members().end(); begin != end; ++begin)
-            {
-                if(begin->second.GetCurrentIndex() >= index + 1)
-                {
-                    commitSize += 1;
-                }
-            }
-        }
-        while(commitSize < this->group_->Raft().MemberMajority());
-        if(result)
-        {
-            this->group_->Raft().SetCommitIndex(index + 1);
-            this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
-        }
-    }
-    rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
-    char resBuf[sizeof(std::uint64_t)];
-    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::PutResponse,sz)};
-    channel.WriteObjectAsync(header);
-    channel.WriteAsync(resBuf,sz);
-}
-
-void rkv::MasterServer::OnDeleteFail(sharpen::INetStreamChannel &channel)
-{
-    rkv::PutResponse response{rkv::MotifyResult::NotCommit};
-    char resBuf[sizeof(std::uint64_t)];
-    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
-    channel.WriteObjectAsync(header);
-    channel.WriteAsync(resBuf,sz);
-}
-
-void rkv::MasterServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
-{
-    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
-    {
-        return this->OnDeleteFail(channel);
-    }
-    rkv::DeleteRequest request;
-    request.Unserialize().LoadFrom(buf);
-    rkv::RaftLog log;
-    log.SetOperation(rkv::RaftLog::Operation::Delete);
-    log.Key() = std::move(request.Key());
-    bool result{false};
-    std::size_t commitSize{0};
-    {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
-        std::uint64_t index{this->group_->Raft().GetLastIndex()};
-        log.SetIndex(index + 1);
-        log.SetTerm(this->group_->Raft().GetCurrentTerm());
-        this->group_->Raft().AppendLog(std::move(log));
-        do
-        {
-            commitSize = 0;
-            result = this->group_->ProposeAppendEntires();
-            if(!result)
-            {
-                break;
-            }
-            for (auto begin = this->group_->Raft().Members().begin(),end = this->group_->Raft().Members().end(); begin != end; ++begin)
-            {
-                if(begin->second.GetCurrentIndex() >= index + 1)
-                {
-                    commitSize += 1;
-                }
-            }
-        }
-        while(commitSize < this->group_->Raft().MemberMajority());
-        if(result)
-        {
-            this->group_->Raft().SetCommitIndex(index + 1);
-            this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
-        }
-    }
-    rkv::PutResponse response{result ? rkv::MotifyResult::Appiled:rkv::MotifyResult::Commited};
-    char resBuf[sizeof(std::uint64_t)];
-    std::size_t sz{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeleteResponse,sz)};
-    channel.WriteObjectAsync(header);
-    channel.WriteAsync(resBuf,sz);
 }
 
 void rkv::MasterServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
@@ -325,18 +167,6 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             }
             switch (type)
             {
-            case rkv::MessageType::GetRequest:
-                std::printf("[Info]Channel %s:%hu want to get a value\n",ip,ep.GetPort());
-                this->OnGet(*channel,buf);
-                break;
-            case rkv::MessageType::PutRequest:
-                std::printf("[Info]Channel %s:%hu want to put a key value pair\n",ip,ep.GetPort());
-                this->OnPut(*channel,buf);
-                break;
-            case rkv::MessageType::DeleteReqeust:
-                std::printf("[Info]Channel %s:%hu want to delete a key value pair\n",ip,ep.GetPort());
-                this->OnDelete(*channel,buf);
-                break;
             case rkv::MessageType::AppendEntiresRequest:
                 std::printf("[Info]Channel %s:%hu want to append entires\n",ip,ep.GetPort());
                 this->OnAppendEntires(*channel,buf);
@@ -344,6 +174,9 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             case rkv::MessageType::VoteRequest:
                 std::printf("[Info]Channel %s:%hu want to request a vote\n",ip,ep.GetPort());
                 this->OnRequestVote(*channel,buf);
+                break;
+            default:
+                std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());
                 break;
             }
         }

@@ -20,11 +20,18 @@ namespace rkv
         PutResponse,
         DeleteReqeust,
         DeleteResponse,
-        GetShardById,
-        AdjustShard,
-        InstallShard,
-        GetMigrations,
+        GetShardByIdRequest,
+        GetShardByIdResponse,
+        AdjustShardRequest,
+        AdjsustShardReponse,
+        InstallShardRequst,
+        InstallShardResponse,
+        GetMigrationsRequest,
+        GetMigrationsResponse,
         GetCompletedMigrations,
+        GetCompletedMigrations,
+        DeleteCompletedMigrationRequest,
+        DeleteCompletedMigrationResponse,
         CompleteMigration, //worker to master
         MigrationComleted  //master to worker
     };

@@ -14,7 +14,7 @@
 #include <rkv/RaftStorage.hpp>
 #include <rkv/RaftGroup.hpp>
 #include <rkv/KeyValueService.hpp>
-#include <rkv/ShardSet.hpp>
+#include <rkv/Shard.hpp>
 
 #include "MasterServerOption.hpp"
 
@@ -29,17 +29,9 @@ namespace rkv
         using Self = rkv::MasterServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
+        static sharpen::ByteBuffer shardsKey_;
+
         void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;
-
-        void OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const;
-
-        void OnPutFail(sharpen::INetStreamChannel &channel);
-
-        void OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
-
-        void OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
-
-        void OnDeleteFail(sharpen::INetStreamChannel &channel);
 
         void OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
@@ -48,7 +40,7 @@ namespace rkv
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         std::vector<sharpen::IpEndPoint> workers_;
-        rkv::ShardSet shards_;
+        std::vector<rkv::Shard> shards_;
     public:
         MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option);
     
