@@ -26,7 +26,7 @@ namespace rkv
     {
     private:
         using Self = rkv::ClientOperator;
-
+    protected:
         static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header);
 
         static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request);
@@ -34,12 +34,6 @@ namespace rkv
         static void ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
 
         static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel);
-
-        static sharpen::ByteBuffer GetValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key);
-
-        static rkv::MotifyResult PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value);
-    
-        static rkv::MotifyResult DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key);
 
         sharpen::IpEndPoint GetRandomId() const noexcept;
 
@@ -115,17 +109,6 @@ namespace rkv
         {
             return *this;
         }
-
-        sharpen::Optional<sharpen::ByteBuffer> Get(sharpen::ByteBuffer key,rkv::GetPolicy policy);
-
-        inline sharpen::Optional<sharpen::ByteBuffer> Get(sharpen::ByteBuffer key)
-        {
-            return this->Get(std::move(key),rkv::GetPolicy::Strict);
-        }
-
-        rkv::MotifyResult Put(sharpen::ByteBuffer key,sharpen::ByteBuffer value);
-
-        rkv::MotifyResult Delete(sharpen::ByteBuffer key);
     };
 }
 

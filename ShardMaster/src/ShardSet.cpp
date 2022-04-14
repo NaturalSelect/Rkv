@@ -14,19 +14,19 @@ rkv::ShardSet::ConstIterator rkv::ShardSet::Find(const sharpen::ByteBuffer &key)
 
 rkv::ShardSet::Iterator rkv::ShardSet::Put(rkv::Shard shard)
 {
-    if(this->Empty())
-    {
-        this->shards_.emplace_back(std::move(shard));
-        return this->Begin();
-    }
-    auto ite = this->Find(shard.Key());
-    if(ite->Key() == shard.Key())
-    {
-        ite->Workers() = std::move(shard.Workers());
-        return ite;
-    }
-    ite = this->shards_.emplace(ite,std::move(shard));
-    return ite;
+    // if(this->Empty())
+    // {
+    //     this->shards_.emplace_back(std::move(shard));
+    //     return this->Begin();
+    // }
+    // auto ite = this->Find(shard.Key());
+    // if(ite->Key() == shard.Key())
+    // {
+    //     ite->Workers() = std::move(shard.Workers());
+    //     return ite;
+    // }
+    // ite = this->shards_.emplace(ite,std::move(shard));
+    // return ite;
 }
 
 rkv::ShardSet::Iterator rkv::ShardSet::Delete(Iterator ite)
@@ -37,11 +37,11 @@ rkv::ShardSet::Iterator rkv::ShardSet::Delete(Iterator ite)
 rkv::ShardSet::Iterator rkv::ShardSet::Delete(const sharpen::ByteBuffer &key)
 {
     auto ite = this->Find(key);
-    if(ite->Key() == key)
-    {
-        ite = this->shards_.erase(ite);
-        return ite;
-    }
+    // if(ite->Key() == key)
+    // {
+    //     ite = this->shards_.erase(ite);
+    //     return ite;
+    // }
     return ite;
 }
 

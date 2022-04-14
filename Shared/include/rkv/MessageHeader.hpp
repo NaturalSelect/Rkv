@@ -20,9 +20,13 @@ namespace rkv
         PutResponse,
         DeleteReqeust,
         DeleteResponse,
-        GetShard,
-        PutShard,
-        SetupNewRaft
+        GetShardById,
+        AdjustShard,
+        InstallShard,
+        GetMigrations,
+        GetCompletedMigrations,
+        CompleteMigration, //worker to master
+        MigrationComleted  //master to worker
     };
 
     struct MessageHeader
