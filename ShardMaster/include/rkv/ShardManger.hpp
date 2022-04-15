@@ -60,7 +60,7 @@ namespace rkv
         }
 
         template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&&>(),std::declval<const rkv::Shard&>() = *std::declval<_Iterator&>())>
-        std::uint64_t GenrateLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term) const
+        std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term) const
         {
             std::uint64_t size{sharpen::GetRangeSize(begin,end)};
             if(size)
@@ -82,7 +82,7 @@ namespace rkv
                 }
                 rkv::RaftLog log;
                 log.SetOperation(rkv::RaftLog::Operation::Put);
-                log.SetIndex(beginIndex++);
+                log.SetIndex(beginIndex);
                 log.SetTerm(term);
                 log.Key() = Self::shardCountKey_;
                 sharpen::ByteBuffer buf{sizeof(size)};
@@ -114,6 +114,11 @@ namespace rkv
         inline std::uint64_t GetNextIndex() const noexcept
         {
             return this->GetSize();
+        }
+
+        inline bool Empty() const noexcept
+        {
+            return this->shards_.empty();
         }
     };
 } 

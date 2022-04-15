@@ -14,6 +14,7 @@ namespace rkv
         using Self = rkv::Migration;
     
         std::uint64_t id_;
+        std::uint64_t groupId_;
         sharpen::Uint64 source_;
         sharpen::IpEndPoint destination_;
         sharpen::ByteBuffer beginKey_;
@@ -61,6 +62,16 @@ namespace rkv
         inline void SetId(std::uint64_t id) noexcept
         {
             this->id_ = id;
+        }
+
+        inline std::uint64_t GetGroupId() const noexcept
+        {
+            return this->groupId_;
+        }
+
+        inline void SetGroupId(std::uint64_t gid) noexcept
+        {
+            this->groupId_ = gid;
         }
 
         inline std::uint64_t GetSource() const noexcept
