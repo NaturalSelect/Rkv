@@ -19,6 +19,8 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     ,app_(nullptr)
     ,group_(nullptr)
     ,shards_(nullptr)
+    ,migrations_(nullptr)
+    ,completedMigrations_(nullptr)
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
@@ -27,10 +29,15 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     this->group_.reset(new rkv::RaftGroup{engine,option.SelfId(),rkv::RaftStorage{engine,"./Storage/MasterRaft"},this->app_});
     //create shard manager
     this->shards_.reset(new rkv::ShardManger{*this->app_});
-    if(!this->group_ || !this->shards_)
+    //create migration manager
+    this->migrations_.reset(new rkv::MigrationManger{*this->app_});
+    //create completed migration manager
+    this->completedMigrations_.reset(new rkv::CompletedMigrationManager{*this->app_});
+    if(!this->group_ || !this->shards_ || !this->migrations_ || !this->completedMigrations_)
     {
         throw std::bad_alloc();
     }
+    //set default append index of members
     std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
     for (auto begin = option.MembersBegin(),end = option.MembersEnd(); begin != end; ++begin)
     {
@@ -80,8 +87,8 @@ void rkv::MasterServer::OnAppendEntires(sharpen::INetStreamChannel &channel,cons
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
         std::puts("[Info]Flush shards");
         {
-            this->shardsLock_.LockWrite();
-            std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+            this->statusLock_.LockWrite();
+            std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
             this->shards_->Flush();
         }
     }
@@ -135,8 +142,8 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
     request.Unserialize().LoadFrom(buf);
     rkv::GetShardByKeyResponse response;
     {
-        this->shardsLock_.LockRead();
-        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
         const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
         if(shard)
         {
@@ -156,7 +163,7 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
     request.Unserialize().LoadFrom(buf);
     rkv::GetShardByIdResponse response;
     {
-        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
         this->shards_->GetShards(response.ShardsInserter(),request.Id());
     }
     sharpen::ByteBuffer resBuf;

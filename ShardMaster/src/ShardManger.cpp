@@ -1,14 +1,14 @@
 #include <rkv/ShardManger.hpp>
 
-sharpen::ByteBuffer rkv::ShardManger::shardCountKey_;
+sharpen::ByteBuffer rkv::ShardManger::countKey_;
 
 std::once_flag rkv::ShardManger::flag_;
 
 void rkv::ShardManger::InitKeys()
 {
-    shardCountKey_.ExtendTo(2);
-    shardCountKey_[0] = 's';
-    shardCountKey_[1] = 'c';
+    countKey_.ExtendTo(2);
+    countKey_[0] = 's';
+    countKey_[1] = 'c';
 }
 
 bool rkv::ShardManger::CompareShards(const rkv::Shard &left,const rkv::Shard &right) noexcept
@@ -41,22 +41,25 @@ rkv::ShardManger::ShardManger(rkv::KeyValueService &service)
 
 void rkv::ShardManger::Flush()
 {
-    this->shards_.clear();
-    sharpen::Optional<sharpen::ByteBuffer> indexBuf{this->service_->TryGet(Self::shardCountKey_)};
-    if(indexBuf.Exist())
+    sharpen::Optional<sharpen::ByteBuffer> countBuf{this->service_->TryGet(Self::countKey_)};
+    if(countBuf.Exist())
     {
-        std::uint64_t count{indexBuf.Get().As<std::uint64_t>()};
-        this->shards_.reserve(count);
-        for (std::uint64_t i = 0; i != count; ++i)
+        std::uint64_t count{countBuf.Get().As<std::uint64_t>()};
+        if(count != this->shards_.size())
         {
-            rkv::Shard shard;
-            sharpen::ByteBuffer buf{this->service_->Get(this->FormatShardKey(i))};
-            shard.Unserialize().LoadFrom(buf);
-            this->shards_.emplace_back(std::move(shard));
+            this->shards_.clear();
+            this->shards_.reserve(sharpen::IntCast<std::size_t>(count));
+            for (std::size_t i = 0; i != count; ++i)
+            {
+                rkv::Shard shard;
+                sharpen::ByteBuffer buf{this->service_->Get(this->FormatShardKey(i))};
+                shard.Unserialize().LoadFrom(buf);
+                this->shards_.emplace_back(std::move(shard));
+            }
+            //sort by begin key
+            using FnPtr = bool(*)(const rkv::Shard &,const rkv::Shard &);
+            std::sort(this->shards_.begin(),this->shards_.end(),static_cast<FnPtr>(&Self::CompareShards));
         }
-        //sort by begin key
-        using FnPtr = bool(*)(const rkv::Shard &,const rkv::Shard &);
-        std::sort(this->shards_.begin(),this->shards_.end(),static_cast<FnPtr>(&Self::CompareShards));
     }
 }
 

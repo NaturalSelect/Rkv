@@ -17,13 +17,15 @@
 
 #include "MasterServerOption.hpp"
 #include "ShardManger.hpp"
+#include "CompletedMigrationManager.hpp"
+#include "MigrationManger.hpp"
 
 namespace rkv
 {
     class MasterServer:private sharpen::TcpServer
     {
     protected:
-        
+
         virtual void OnNewChannel(sharpen::NetStreamChannelPtr channel) override;
     private:
         using Self = rkv::MasterServer;
@@ -45,11 +47,13 @@ namespace rkv
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         std::vector<sharpen::IpEndPoint> workers_;
-        sharpen::AsyncReadWriteLock shardsLock_;
+        sharpen::AsyncReadWriteLock statusLock_;
         std::unique_ptr<rkv::ShardManger> shards_;
+        std::unique_ptr<rkv::MigrationManger> migrations_;
+        std::unique_ptr<rkv::CompletedMigrationManager> completedMigrations_;
     public:
         MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option);
-    
+
         ~MasterServer() noexcept = default;
 
         inline void RunAsync()

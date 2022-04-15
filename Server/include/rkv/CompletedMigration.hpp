@@ -34,7 +34,18 @@ namespace rkv
             return *this;
         }
     
-        Self &operator=(Self &&other) noexcept;
+        inline Self &operator=(Self &&other) noexcept
+        {
+            if(this != std::addressof(other))
+            {
+                this->id_ = other.id_;
+                this->source_ = other.source_;
+                this->destination_ = other.destination_;
+                this->beginKey_ = std::move(this->beginKey_);
+                this->endKey_ = std::move(this->endKey_);
+            }
+            return *this;
+        }
     
         ~CompletedMigration() noexcept = default;
     

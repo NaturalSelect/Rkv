@@ -13,7 +13,7 @@ namespace rkv
     private:
         using Self = rkv::ShardManger;
     
-        static sharpen::ByteBuffer shardCountKey_;
+        static sharpen::ByteBuffer countKey_;
 
         static std::once_flag flag_;
 
@@ -66,7 +66,7 @@ namespace rkv
             if(size)
             {
                 
-                std::uint64_t index{this->shards_.size()};
+                std::uint64_t oldSize{this->shards_.size()};
                 while (begin != end)
                 {
                     const rkv::Shard &shard{*begin};
@@ -74,7 +74,7 @@ namespace rkv
                     log.SetOperation(rkv::RaftLog::Operation::Put);
                     log.SetIndex(beginIndex++);
                     log.SetTerm(term);
-                    log.Key() = Self::FormatShardKey(index);
+                    log.Key() = Self::FormatShardKey(shard.GetId());
                     sharpen::ByteBuffer buf;
                     shard.Serialize().StoreTo(buf);
                     log.Value() = std::move(buf);
@@ -84,9 +84,9 @@ namespace rkv
                 log.SetOperation(rkv::RaftLog::Operation::Put);
                 log.SetIndex(beginIndex);
                 log.SetTerm(term);
-                log.Key() = Self::shardCountKey_;
+                log.Key() = Self::countKey_;
                 sharpen::ByteBuffer buf{sizeof(size)};
-                buf.As<std::uint64_t>() = size + index;
+                buf.As<std::uint64_t>() = size + oldSize;
                 log.Value() = std::move(buf);
                 *inserter++ = std::move(log);
             }

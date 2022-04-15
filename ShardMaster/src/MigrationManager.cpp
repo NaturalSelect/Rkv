@@ -13,9 +13,10 @@ void rkv::MigrationManger::InitKeys()
 
 sharpen::ByteBuffer rkv::MigrationManger::FormatMigrationKey(std::uint64_t id)
 {
-    sharpen::ByteBuffer key{sizeof(id) + 1};
+    sharpen::ByteBuffer key{1};
+    sharpen::Varuint64 builder{id};
+    sharpen::BinarySerializator::StoreTo(builder,key,1);
     key[0] = 'm';
-    std::memcpy(key.Data() + 1,&id,sizeof(id));
     return key;
 }
 
@@ -39,6 +40,7 @@ void rkv::MigrationManger::Flush()
         sharpen::BinarySerializator::LoadFrom(indexs,indexBuf.Get());
         if(!indexs.empty())
         {
+            this->migrations_.clear();
             std::size_t size{indexs.size()};
             this->migrations_.reserve(size);
             std::uint64_t maxId{0};
