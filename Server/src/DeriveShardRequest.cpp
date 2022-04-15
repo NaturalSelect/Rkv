@@ -18,9 +18,19 @@ std::size_t rkv::DeriveShardRequest::LoadFrom(const char *data,std::size_t size)
     std::size_t offset{0};
     sharpen::Varuint64 builder{0};
     offset += Helper::LoadFrom(builder,data,size);
-    if(size < offset + 1)
+    if(size == offset)
     {
         throw sharpen::DataCorruptionException("adjust shard request corruption");
     }
+    offset += Helper::LoadFrom(this->beginKey_,data + offset,size - offset);
+    return offset;
+}
+
+std::size_t rkv::DeriveShardRequest::UnsafeStoreTo(char *data) const noexcept
+{
+    std::size_t offset{0};
+    sharpen::Varuint64 builder{this->source_};
+    offset += Helper::UnsafeStoreTo(builder,data);
+    offset += Helper::UnsafeStoreTo(this->beginKey_,data + offset);
     return offset;
 }

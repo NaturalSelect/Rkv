@@ -41,8 +41,9 @@ namespace rkv
 
         void OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        //TODO
         void OnGetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnDerviveShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;

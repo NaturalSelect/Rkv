@@ -9,7 +9,7 @@ namespace rkv
     class RaftLog:public sharpen::BinarySerializable<rkv::RaftLog>
     {
     public:
-        enum class Operation:sharpen::Uint64
+        enum class Operation:std::uint64_t
         {
             Put,
             Delete
