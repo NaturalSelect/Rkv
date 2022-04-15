@@ -97,12 +97,12 @@ namespace rkv
 
         const rkv::Shard *GetShardPtr(const sharpen::ByteBuffer &key) const noexcept;
 
-        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::Shard*&>())>
-        void GetShardPtr(_InsertIterator inserter,const sharpen::IpEndPoint &id) const noexcept
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::Shard&>())>
+        void GetShards(_InsertIterator inserter,const sharpen::IpEndPoint &id) const noexcept
         {
             for (auto begin = this->shards_.begin(),end = this->shards_.end(); begin != end; ++begin)
             {
-                *inserter++ = std::addressof(*begin);   
+                *inserter++ = *begin;   
             }
         }
 

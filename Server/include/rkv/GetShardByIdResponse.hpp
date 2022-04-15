@@ -36,6 +36,10 @@ namespace rkv
     
         inline Self &operator=(Self &&other) noexcept
         {
+            if(this != std::addressof(other))
+            {
+                this->shards_ = std::move(other.shards_);
+            }
             return *this;
         }
     

@@ -5,18 +5,14 @@
 
 #include <rkv/MessageHeader.hpp>
 #include <rkv/LeaderRedirectResponse.hpp>
-#include <rkv/GetRequest.hpp>
-#include <rkv/GetResponse.hpp>
-#include <rkv/PutRequest.hpp>
-#include <rkv/PutResponse.hpp>
-#include <rkv/DeleteRequest.hpp>
-#include <rkv/DeleteResponse.hpp>
 #include <rkv/AppendEntiresRequest.hpp>
 #include <rkv/AppendEntiresResponse.hpp>
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
 #include <rkv/GetShardByKeyRequest.hpp>
 #include <rkv/GetShardByKeyResponse.hpp>
+#include <rkv/GetShardByIdRequest.hpp>
+#include <rkv/GetShardByIdResponse.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
@@ -137,11 +133,31 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
 {
     rkv::GetShardByKeyRequest request;
     request.Unserialize().LoadFrom(buf);
-    const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
     rkv::GetShardByKeyResponse response;
-    if(shard)
     {
-        response.Shard().Construct(*shard);
+        this->shardsLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+        const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
+        if(shard)
+        {
+            response.Shard().Construct(*shard);
+        }
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByKeyResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
+void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    rkv::GetShardByIdRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::GetShardByIdResponse response;
+    {
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->shardsLock_,std::adopt_lock};
+        this->shards_->GetShards(response.ShardsInserter(),request.Id());
     }
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
@@ -195,7 +211,10 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
                 this->OnGetShardByKey(*channel,buf);
                 break;
-            
+            case rkv::MessageType::GetShardByIdRequest:
+                std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
+                this->OnGetShardById(*channel,buf);
+                break;
             default:
                 std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());
                 break;
