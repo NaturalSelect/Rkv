@@ -15,6 +15,8 @@
 #include <rkv/AppendEntiresResponse.hpp>
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
+#include <rkv/GetShardByKeyRequest.hpp>
+#include <rkv/GetShardByKeyResponse.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
@@ -131,6 +133,23 @@ void rkv::MasterServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
     channel.WriteAsync(resBuf);
 }
 
+void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    rkv::GetShardByKeyRequest request;
+    request.Unserialize().LoadFrom(buf);
+    const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
+    rkv::GetShardByKeyResponse response;
+    if(shard)
+    {
+        response.Shard().Construct(*shard);
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
 void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
@@ -172,6 +191,11 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to request a vote\n",ip,ep.GetPort());
                 this->OnRequestVote(*channel,buf);
                 break;
+            case rkv::MessageType::GetShardByKeyRequest:
+                std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
+                this->OnGetShardByKey(*channel,buf);
+                break;
+            
             default:
                 std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());
                 break;

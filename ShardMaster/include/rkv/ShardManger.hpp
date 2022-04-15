@@ -21,6 +21,10 @@ namespace rkv
 
         static sharpen::ByteBuffer FormatShardKey(std::uint64_t id);
 
+        static bool CompareShards(const rkv::Shard &left,const rkv::Shard &right) noexcept;
+
+        static bool CompareShards(const rkv::Shard &left,const sharpen::ByteBuffer &right) noexcept;
+
         rkv::KeyValueService *service_;
         std::vector<rkv::Shard> shards_;
     public:
@@ -63,17 +67,6 @@ namespace rkv
             {
                 
                 std::uint64_t index{this->shards_.size()};
-                {
-                    rkv::RaftLog log;
-                    log.SetOperation(rkv::RaftLog::Operation::Put);
-                    log.SetIndex(beginIndex++);
-                    log.SetTerm(term);
-                    log.Key() = Self::shardCountKey_;
-                    sharpen::ByteBuffer buf{sizeof(size)};
-                    buf.As<std::uint64_t>() = size + index;
-                    log.Value() = std::move(buf);
-                    *inserter++ = std::move(log);
-                }
                 while (begin != end)
                 {
                     const rkv::Shard &shard{*begin};
@@ -87,6 +80,15 @@ namespace rkv
                     log.Value() = std::move(buf);
                     *inserter++ = std::move(log);
                 }
+                rkv::RaftLog log;
+                log.SetOperation(rkv::RaftLog::Operation::Put);
+                log.SetIndex(beginIndex++);
+                log.SetTerm(term);
+                log.Key() = Self::shardCountKey_;
+                sharpen::ByteBuffer buf{sizeof(size)};
+                buf.As<std::uint64_t>() = size + index;
+                log.Value() = std::move(buf);
+                *inserter++ = std::move(log);
             }
             return beginIndex;
         }
@@ -102,6 +104,16 @@ namespace rkv
             {
                 *inserter++ = std::addressof(*begin);   
             }
+        }
+
+        inline std::size_t GetSize() const noexcept
+        {
+            return this->shards_.size();
+        }
+
+        inline std::uint64_t GetNextIndex() const noexcept
+        {
+            return this->GetSize();
         }
     };
 } 

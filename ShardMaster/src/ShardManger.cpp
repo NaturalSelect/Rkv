@@ -11,6 +11,16 @@ void rkv::ShardManger::InitKeys()
     shardCountKey_[1] = 'c';
 }
 
+bool rkv::ShardManger::CompareShards(const rkv::Shard &left,const rkv::Shard &right) noexcept
+{
+    return left.BeginKey() < right.BeginKey();
+}
+
+bool rkv::ShardManger::CompareShards(const rkv::Shard &left,const sharpen::ByteBuffer &right) noexcept
+{
+    return left.BeginKey() < right;
+}
+
 sharpen::ByteBuffer rkv::ShardManger::FormatShardKey(std::uint64_t index)
 {
     sharpen::Varuint64 builder{index};
@@ -44,32 +54,30 @@ void rkv::ShardManger::Flush()
             shard.Unserialize().LoadFrom(buf);
             this->shards_.emplace_back(std::move(shard));
         }
+        //sort by begin key
+        using FnPtr = bool(*)(const rkv::Shard &,const rkv::Shard &);
+        std::sort(this->shards_.begin(),this->shards_.end(),static_cast<FnPtr>(&Self::CompareShards));
     }
 }
 
 const rkv::Shard *rkv::ShardManger::GetShardPtr(const sharpen::ByteBuffer &key) const noexcept
 {
-    if(this->shards_.empty())
-    {
-        return nullptr;
-    }
     const rkv::Shard *shard{nullptr};
-    for (auto begin = this->shards_.begin(),end = this->shards_.end(); begin != end; ++begin)
+    if(!this->shards_.empty())
     {
-        if(begin->BeginKey() == key)
+        using FnPtr = bool(*)(const rkv::Shard&,const sharpen::ByteBuffer&);
+        auto ite = std::lower_bound(this->shards_.begin(),this->shards_.end(),key,static_cast<FnPtr>(&Self::CompareShards));
+        if(ite == this->shards_.end())
         {
-            return std::addressof(*begin);
+            ite = sharpen::IteratorBackward(ite,1);
         }
-        else if(begin->BeginKey() < key)
+        else if(ite != this->shards_.begin() && ite->BeginKey() > key)
         {
-            if(!shard)
-            {
-                shard = std::addressof(*begin);
-            }
-            else if(shard->BeginKey() < begin->BeginKey())
-            {
-                shard = std::addressof(*begin);
-            }
+            ite = sharpen::IteratorBackward(ite,1);
+        }
+        if(ite->BeginKey() <= key)
+        {
+            shard = std::addressof(*ite);
         }
     }
     return shard;

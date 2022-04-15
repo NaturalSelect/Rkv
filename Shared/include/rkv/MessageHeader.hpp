@@ -20,6 +20,8 @@ namespace rkv
         PutResponse,
         DeleteReqeust,
         DeleteResponse,
+        GetShardByKeyRequest,
+        GetShardByKeyResponse,
         GetShardByIdRequest,
         GetShardByIdResponse,
         AdjustShardRequest,
