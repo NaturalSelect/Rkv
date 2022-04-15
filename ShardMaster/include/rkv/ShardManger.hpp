@@ -106,6 +106,8 @@ namespace rkv
             }
         }
 
+        const rkv::Shard *FindShardPtr(const sharpen::ByteBuffer &key) const noexcept;
+
         inline std::size_t GetSize() const noexcept
         {
             return this->shards_.size();

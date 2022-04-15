@@ -85,3 +85,15 @@ const rkv::Shard *rkv::ShardManger::GetShardPtr(const sharpen::ByteBuffer &key) 
     }
     return shard;
 }
+
+const rkv::Shard *rkv::ShardManger::FindShardPtr(const sharpen::ByteBuffer &beginKey) const noexcept
+{
+    const rkv::Shard *shard{nullptr};
+    using FnPtr = bool(*)(const rkv::Shard&,const sharpen::ByteBuffer&);
+    auto ite = std::lower_bound(this->shards_.begin(),this->shards_.end(),beginKey,static_cast<FnPtr>(&Self::CompareShards));
+    if(ite != this->shards_.end() && ite->BeginKey() == beginKey)
+    {
+        shard = std::addressof(*ite);
+    }
+    return shard;
+}

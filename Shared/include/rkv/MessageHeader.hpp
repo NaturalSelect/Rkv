@@ -24,7 +24,7 @@ namespace rkv
         GetShardByKeyResponse,
         GetShardByIdRequest,
         GetShardByIdResponse,
-        AdjustShardRequest,
+        DeriveShardRequest,
         AdjsustShardReponse,
         InstallShardRequst,
         InstallShardResponse,
