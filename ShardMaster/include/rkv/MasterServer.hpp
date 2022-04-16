@@ -39,7 +39,7 @@ namespace rkv
 
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
 
-        bool TryConnect(const sharpen::IpEndPoint &endpoint) noexcept;
+        bool TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept;
 
         void FlushStatus();
 

@@ -73,7 +73,7 @@ sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
     return this->workers_[index];
 }
 
-bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) noexcept
+bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept
 {
     sharpen::IpEndPoint ep{0,0};
     sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
@@ -399,7 +399,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         rkv::Shard shard;
                         for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
                         {
-                            shard.Workers().emplace_back(begin->GetId());
+                            shard.Workers().emplace_back(begin->Destination());
                         }
                         shard.SetId(this->shards_->GetNextIndex());
                         shard.BeginKey() = std::move(migrations[0].BeginKey());
@@ -491,10 +491,16 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 this->OnGetShardById(*channel,buf);
                 break;
             case rkv::MessageType::CompleteMigrationRequest:
+                std::printf("[Info]Channel %s:%hu want to complete a migration\n",ip,ep.GetPort());
+                this->OnCompleteMigration(*channel,buf);
                 break;
             case rkv::MessageType::GetCompletedMigrationsRequest:
+                std::printf("[Info]Channel %s:%hu want to get completed migrations\n",ip,ep.GetPort());
+                this->OnGetCompletedMigrations(*channel,buf);
                 break;
             case rkv::MessageType::GetMigrationsRequest:
+                std::printf("[Info]Channel %s:%hu want to get migrations\n",ip,ep.GetPort());
+                this->OnGetMigrations(*channel,buf);
                 break;
             default:
                 std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());

@@ -65,7 +65,7 @@ namespace rkv
                 begin = sharpen::IteratorForward(begin,beginId);
                 while(begin != end)
                 {
-                    if(begin->source_ == source)
+                    if(begin->GetSource() == source)
                     {
                         *inserter++ = *begin;
                     }
@@ -75,15 +75,15 @@ namespace rkv
         }
 
         template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&&>(),std::declval<rkv::CompletedMigration&>() = *std::declval<_Iterator>())>
-        inline std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator beign,_Iterator end,std::uint64_t beginIndex,std::uint64_t term)
+        inline std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term)
         {
-            std::size_t size{sharpen::GetRangeSize(beign,end)};
+            std::size_t size{sharpen::GetRangeSize(begin,end)};
             if(size)
             {
                 std::uint64_t oldSize{this->migrations_.size()};
                 while (begin != end)
                 {
-                    const rkv::CompletedMigration &migration{*beign};
+                    const rkv::CompletedMigration &migration{*begin};
                     rkv::RaftLog log;
                     log.SetOperation(rkv::RaftLog::Operation::Put);
                     log.SetIndex(beginIndex++);

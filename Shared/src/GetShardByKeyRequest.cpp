@@ -2,15 +2,15 @@
 
 std::size_t rkv::GetShardByKeyRequest::ComputeSize() const noexcept
 {
-    return Helper::ComputeSize(this->key_);
+    return this->key_.ComputeSize();
 }
 
 std::size_t rkv::GetShardByKeyRequest::LoadFrom(const char *data,std::size_t size)
 {
-    return Helper::LoadFrom(this->key_,data,size);
+    return this->key_.LoadFrom(data,size);
 }
 
 std::size_t rkv::GetShardByKeyRequest::UnsafeStoreTo(char *data) const noexcept
 {
-    return Helper::UnsafeStoreTo(this->key_,data);
+    return this->key_.UnsafeStoreTo(data);
 }

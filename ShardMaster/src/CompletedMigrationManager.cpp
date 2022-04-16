@@ -1,5 +1,9 @@
 #include <rkv/CompletedMigrationManager.hpp>
 
+sharpen::ByteBuffer rkv::CompletedMigrationManager::countKey_;
+
+std::once_flag rkv::CompletedMigrationManager::flag_;
+
 void rkv::CompletedMigrationManager::InitKeys()
 {
     countKey_.ExtendTo(2);

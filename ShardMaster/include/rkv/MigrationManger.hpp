@@ -159,12 +159,12 @@ namespace rkv
                 }
                 while (begin != end)
                 {
-                    const rkv::Migration &migration{*begin};
+                    std::uint64_t id{*begin};
                     rkv::RaftLog log;
                     log.SetOperation(rkv::RaftLog::Operation::Delete);
                     log.SetIndex(beginIndex++);
                     log.SetTerm(term);
-                    log.Key() = Self::FormatMigrationKey(migration.GetId());
+                    log.Key() = Self::FormatMigrationKey(id);
                     *inserter++ = std::move(log);
                     ++begin;
                 }

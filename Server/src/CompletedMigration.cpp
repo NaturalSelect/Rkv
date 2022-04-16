@@ -9,8 +9,8 @@ std::size_t rkv::CompletedMigration::ComputeSize() const noexcept
     size += Helper::ComputeSize(builder);
     builder.Set(this->destination_);
     size += Helper::ComputeSize(builder);
-    size += Helper::ComputeSize(this->beginKey_);
-    size += Helper::ComputeSize(this->endKey_);
+    size += this->beginKey_.ComputeSize();
+    size += this->endKey_.ComputeSize();
     return size;
 }
 
@@ -40,12 +40,12 @@ std::size_t rkv::CompletedMigration::LoadFrom(const char *data,std::size_t size)
     {
         throw sharpen::DataCorruptionException("completed migration corruption");
     }
-    offset += Helper::LoadFrom(this->beginKey_,data + offset,size - offset);
+    offset += this->beginKey_.LoadFrom(data + offset,size - offset);
     if (size == offset)
     {
         throw sharpen::DataCorruptionException("completed migration corruption");
     }
-    offset += Helper::LoadFrom(this->endKey_,data + offset,size - offset);
+    offset += this->endKey_.LoadFrom(data + offset,size - offset);
     return offset;
 }
 
@@ -58,7 +58,7 @@ std::size_t rkv::CompletedMigration::UnsafeStoreTo(char *data) const noexcept
     offset += Helper::UnsafeStoreTo(builder,data + offset);
     builder.Set(this->destination_);
     offset += Helper::UnsafeStoreTo(builder,data + offset);
-    offset += Helper::UnsafeStoreTo(this->beginKey_,data + offset);
-    offset += Helper::UnsafeStoreTo(this->endKey_,data + offset);
+    offset += this->beginKey_.UnsafeStoreTo(data + offset);
+    offset += this->endKey_.UnsafeStoreTo(data + offset);
     return offset;
 }
