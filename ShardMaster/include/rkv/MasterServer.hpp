@@ -15,6 +15,7 @@
 #include <rkv/RaftStorage.hpp>
 #include <rkv/RaftGroup.hpp>
 #include <rkv/KeyValueService.hpp>
+#include <rkv/AppendEntriesResult.hpp>
 
 #include "MasterServerOption.hpp"
 #include "ShardManger.hpp"
@@ -31,13 +32,6 @@ namespace rkv
     private:
         using Self = rkv::MasterServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
-
-        enum class AppendEntriesResult:std::uint32_t
-        {
-            NotCommit,
-            Commited,
-            Appiled
-        };
 
         static constexpr std::size_t replicationFactor_{3};
 
@@ -78,13 +72,13 @@ namespace rkv
         }
 
         template<typename _Iterator,typename _Check = decltype(std::declval<rkv::RaftLog&>() = *std::declval<_Iterator&>())>
-        inline AppendEntriesResult AppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
+        inline rkv::AppendEntriesResult AppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
         {
             this->group_->DelayCycle();
             std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
             if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
             {
-                return AppendEntriesResult::NotCommit;
+                return rkv::AppendEntriesResult::NotCommit;
             }
             while (begin != end)
             {
@@ -112,9 +106,9 @@ namespace rkv
             {
                 this->group_->Raft().SetCommitIndex(commitIndex);
                 this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
-                return AppendEntriesResult::Appiled;
+                return rkv::AppendEntriesResult::Appiled;
             }
-            return AppendEntriesResult::Commited;
+            return rkv::AppendEntriesResult::Commited;
         }
 
         void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;

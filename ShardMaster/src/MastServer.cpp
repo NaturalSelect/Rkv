@@ -221,11 +221,6 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
             }
             else
             {
-                //TODO
-                //select workers
-                //create migrations
-                //commit changes
-                //notify workers
                 this->statusLock_.UpgradeFromRead();
                 std::vector<sharpen::IpEndPoint> workers;
                 workers.reserve(Self::replicationFactor_);
@@ -240,10 +235,18 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                     std::uint64_t index{this->group_->Raft().GetLastIndex() + 1};
                     std::uint64_t term{this->group_->Raft().GetCurrentTerm()};
                     index = this->migrations_->GenrateEmplaceLogs(std::back_inserter(logs),migrations.begin(),migrations.end(),index,term);
-                    AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
-                    if(result == AppendEntriesResult::Appiled)
+                    rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                    switch (result)
                     {
-
+                    case rkv::AppendEntriesResult::Appiled:
+                        response.SetResult(rkv::DeriveResult::Appiled);
+                        break;
+                    case rkv::AppendEntriesResult::Commited:
+                        response.SetResult(rkv::DeriveResult::Commited);
+                        break;
+                    case rkv::AppendEntriesResult::NotCommit:
+                        response.SetResult(rkv::DeriveResult::NotCommit);
+                        break;
                     }
                 }
                 else
