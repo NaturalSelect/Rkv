@@ -68,10 +68,6 @@ bool rkv::RaftGroup::ProposeAppendEntries()
     else
     {
         std::puts("[Info]Append entires to other members success");
-        if (this->appendEntriesCb_)
-        {
-            this->appendEntriesCb_();
-        }
     }
     finish.WaitAsync();
     this->raft_.ReactNewTerm(proposal.GetMaxTerm());
@@ -110,8 +106,13 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::LeaderLoop() noexcept
         }
         if(result && commitSize >= this->raft_.MemberMajority())
         {
+            std::uint64_t commitIndex{this->raft_.GetCommitIndex()};
             this->raft_.SetCommitIndex(index);
             this->raft_.ApplyLogs(RaftType::LostPolicy::Ignore);
+            if (commitIndex != index && this->appendEntriesCb_)
+            {
+                this->appendEntriesCb_();
+            }
         }
     }
     return sharpen::TimerLoop::LoopStatus::Continue;

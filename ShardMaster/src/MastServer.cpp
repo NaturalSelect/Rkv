@@ -48,14 +48,6 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     {
         throw std::bad_alloc();
     }
-    //set default append index of members
-    std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
-    for (auto begin = option.MembersBegin(),end = option.MembersEnd(); begin != end; ++begin)
-    {
-        rkv::RaftMember member{*begin,engine};
-        member.SetCurrentIndex(lastAppiled);
-        this->group_->Raft().Members().emplace(*begin,std::move(member));
-    }
     //load workers
     this->workers_.reserve(option.GetWorkersSize());
     for (auto begin = option.WorkersBegin(),end = option.WorkersEnd(); begin != end; ++begin)
