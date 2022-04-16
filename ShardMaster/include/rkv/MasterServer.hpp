@@ -37,19 +37,29 @@ namespace rkv
 
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
 
+        bool TryConnect(const sharpen::IpEndPoint &endpoint) noexcept;
+
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const sharpen::IpEndPoint&>())>
         inline std::size_t SelectWorkers(_InsertIterator inserter,std::size_t count) const noexcept
         {
             std::unordered_set<sharpen::IpEndPoint> set{count};
+            std::unordered_set<sharpen::IpEndPoint> badSet;
             do
             {
                 sharpen::IpEndPoint id{this->GetRandomWorkerId()};
                 if(!set.count(id))
                 {
-                    *inserter++ = id;
-                    set.emplace(id);
+                    if (this->TryConnect(id))
+                    {
+                        *inserter++ = id;
+                        set.emplace(id);
+                    }
+                    else
+                    {
+                        badSet.emplace(id);
+                    }
                 }
-            } while (set.size() != count && set.size() != this->workers_.size());
+            } while (set.size() != count && set.size() + badSet.size() != this->workers_.size());
             return set.size();
         }
 

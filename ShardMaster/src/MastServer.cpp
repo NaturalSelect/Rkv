@@ -69,6 +69,24 @@ sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
     return this->workers_[index];
 }
 
+bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) noexcept
+{
+    sharpen::IpEndPoint ep{0,0};
+    sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
+    channel->Bind(ep);
+    channel->Register(*this->engine_);
+    try
+    {
+        channel->ConnectAsync(endpoint);
+    }
+    catch(const std::exception &ignore)
+    {
+        static_cast<void>(ignore);
+        return false;
+    }
+    return true;
+}
+
 void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
 {
     rkv::LeaderRedirectResponse response;
