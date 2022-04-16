@@ -1,8 +1,19 @@
-#include <rkv/ClientOperator.hpp>
+#include <rkv/Client.hpp>
 
 #include <unordered_set>
 
-sharpen::IpEndPoint rkv::ClientOperator::GetRandomId() const noexcept
+rkv::Client::Client(Self &&other) noexcept
+    :engine_(other.engine_)
+    ,random_(std::move(other.random_))
+    ,distribution_(std::move(other.distribution_))
+    ,leaderId_(std::move(other.leaderId_))
+    ,serverMap_(std::move(other.serverMap_))
+    ,timer_(std::move(other.timer_))
+    ,restoreTimeout_(other.restoreTimeout_)
+    ,maxTimeoutCount_(other.maxTimeoutCount_)
+{}
+
+sharpen::IpEndPoint rkv::Client::GetRandomId() const noexcept
 {
     assert(!this->serverMap_.empty());
     std::size_t index{this->distribution_(this->random_) - 1};
@@ -10,7 +21,7 @@ sharpen::IpEndPoint rkv::ClientOperator::GetRandomId() const noexcept
     return ite->first;
 }
 
-sharpen::NetStreamChannelPtr rkv::ClientOperator::MakeConnection(sharpen::EventEngine &engine,const sharpen::IpEndPoint &id)
+sharpen::NetStreamChannelPtr rkv::Client::MakeConnection(sharpen::EventEngine &engine,const sharpen::IpEndPoint &id)
 {
     sharpen::NetStreamChannelPtr conn = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
     sharpen::IpEndPoint ep{0,0};
@@ -20,7 +31,7 @@ sharpen::NetStreamChannelPtr rkv::ClientOperator::MakeConnection(sharpen::EventE
     return conn;
 }
 
-void rkv::ClientOperator::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header)
+void rkv::Client::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header)
 {
     std::size_t sz{channel->WriteObjectAsync(header)};
     if(sz != sizeof(header))
@@ -29,7 +40,7 @@ void rkv::ClientOperator::WriteMessage(sharpen::NetStreamChannelPtr channel,cons
     }
 }
 
-void rkv::ClientOperator::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request)
+void rkv::Client::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request)
 {
     Self::WriteMessage(channel,header);
     std::size_t sz{channel->WriteAsync(request)};
@@ -39,7 +50,7 @@ void rkv::ClientOperator::WriteMessage(sharpen::NetStreamChannelPtr channel,cons
     }
 }
 
-void rkv::ClientOperator::ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response)
+void rkv::Client::ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response)
 {
     rkv::MessageHeader header;
     std::size_t sz{channel->ReadObjectAsync(header)};
@@ -59,7 +70,7 @@ void rkv::ClientOperator::ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::
     }
 }
 
-sharpen::NetStreamChannelPtr rkv::ClientOperator::GetConnection(const sharpen::IpEndPoint &id) const
+sharpen::NetStreamChannelPtr rkv::Client::GetConnection(const sharpen::IpEndPoint &id) const
 {
     auto ite = this->serverMap_.find(id);
     assert(ite != this->serverMap_.end());
@@ -70,14 +81,14 @@ sharpen::NetStreamChannelPtr rkv::ClientOperator::GetConnection(const sharpen::I
     return ite->second;
 }
 
-void rkv::ClientOperator::EraseConnection(const sharpen::IpEndPoint &id)
+void rkv::Client::EraseConnection(const sharpen::IpEndPoint &id)
 {
     auto ite = this->serverMap_.find(id);
     assert(ite != this->serverMap_.end());
     ite->second.reset();
 }
 
-sharpen::Optional<sharpen::IpEndPoint> rkv::ClientOperator::GetLeaderId(sharpen::NetStreamChannelPtr channel)
+sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::NetStreamChannelPtr channel)
 {
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,0)};
     Self::WriteMessage(channel,header);
@@ -96,7 +107,7 @@ sharpen::Optional<sharpen::IpEndPoint> rkv::ClientOperator::GetLeaderId(sharpen:
     return sharpen::EmptyOpt;
 }
 
-void rkv::ClientOperator::FillLeaderId()
+void rkv::Client::FillLeaderId()
 {
     if(this->leaderId_.Exist())
     {
@@ -123,7 +134,7 @@ void rkv::ClientOperator::FillLeaderId()
                 {
                     throw std::logic_error("cannot find leader");
                 }
-                std::printf("[Info]Waiting election complete(%zu/%zu)\n",count,Self::defaultMaxTimeoutCount_);
+                std::printf("[Info]Waiting election complete(%zu/%zu)\n",count,this->maxTimeoutCount_);
                 this->timer_->Await(this->restoreTimeout_);
                 ++count;
             }
@@ -132,7 +143,7 @@ void rkv::ClientOperator::FillLeaderId()
         {
             throw;
         }
-        catch(const std::exception& e)
+        catch(const std::exception &e)
         {
             std::fprintf(stderr,"[Error]Cannot fill leader id because %s\n",e.what());
             std::printf("[Info]Drop drity channel %s:%hu\n",ip,id.GetPort());
@@ -141,10 +152,10 @@ void rkv::ClientOperator::FillLeaderId()
             conn->GetRemoteEndPoint(id);
             id.GetAddrString(ip,sizeof(ip));
         }
-    }while(!this->leaderId_.Exist());
+    } while(!this->leaderId_.Exist());
 }
 
-sharpen::NetStreamChannelPtr rkv::ClientOperator::MakeRandomConnection() const
+sharpen::NetStreamChannelPtr rkv::Client::MakeRandomConnection() const
 {
     char ip[21] = {};
     sharpen::NetStreamChannelPtr conn{nullptr};
@@ -172,6 +183,6 @@ sharpen::NetStreamChannelPtr rkv::ClientOperator::MakeRandomConnection() const
             }
             id = tmp;
         }
-    } while (!conn);
+    } while(!conn);
     return conn;
 }

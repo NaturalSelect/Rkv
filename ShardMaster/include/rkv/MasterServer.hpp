@@ -41,6 +41,8 @@ namespace rkv
 
         bool TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept;
 
+        void MigrationCompleted(const sharpen::IpEndPoint &engpoint) const noexcept;
+
         void FlushStatus();
 
         inline void FlushStatusWithLock()

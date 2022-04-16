@@ -57,6 +57,11 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     assert(!this->workers_.empty());
     //set callback
     this->group_->SetAppendEntriesCallback(std::bind(&Self::FlushStatusWithLock,this));
+    //set a start shard
+    if(this->shards_->Empty())
+    {
+
+    }
 }
 
 sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
@@ -243,6 +248,7 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                             else
                             {
                                 index = 0;
+                                response.SetResult(rkv::DeriveResult::NotCommit);
                             }
                         }
                         else
@@ -327,6 +333,18 @@ void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,cons
     channel.WriteAsync(resBuf);
 }
 
+void rkv::MasterServer::MigrationCompleted(const sharpen::IpEndPoint &id) const noexcept
+{
+    try
+    {
+        //TODO
+    }
+    catch(const std::exception &ignore)
+    {
+        static_cast<void>(ignore);
+    }
+}
+
 void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
 
@@ -336,7 +354,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
     response.SetResult(rkv::CompleteMigrationResult::Appiled);
     {
         this->statusLock_.LockRead();
-        std::unique_lock<sharpen::AsyncReadWriteLock> statusLocck{this->statusLock_,std::adopt_lock};
+        std::unique_lock<sharpen::AsyncReadWriteLock> statusLock{this->statusLock_,std::adopt_lock};
         std::vector<rkv::Migration> migrations;
         this->migrations_->GetMigrations(std::back_inserter(migrations),request.GetGroupId());
         //double check
@@ -363,6 +381,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         else
                         {
                             index = 0;
+                            response.SetResult(rkv::CompleteMigrationResult::NotCommit);
                         }
                     }
                     else
@@ -384,6 +403,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         }
                     }
                     std::size_t migrationsCount{migrations.size()};
+                    const rkv::Shard *notifyShard{nullptr};
                     //install shard
                     if(migrationsCount == Self::replicationFactor_)
                     {
@@ -406,6 +426,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         completedMigration.SetSource(migrations[0].GetSource());
                         completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
                         completedMigration.EndKey() = std::move(migrations[0].EndKey());
+                        notifyShard = this->shards_->GetShardPtr(completedMigration.BeginKey());
                         index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
                     }
                     rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
@@ -420,6 +441,15 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     case rkv::AppendEntriesResult::NotCommit:
                         response.SetResult(rkv::CompleteMigrationResult::NotCommit);
                         break;
+                    }
+                    if(notifyShard)
+                    {
+                        std::vector<sharpen::IpEndPoint> workers{notifyShard->Workers()};
+                        statusLock.unlock();
+                        for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
+                        {
+                            this->MigrationCompleted(*begin);
+                        }
                     }
                 }
             }

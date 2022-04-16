@@ -2,19 +2,25 @@
 #ifndef _RKV_MASTERCLIENT_HPP
 #define _RKV_MASTERCLIENT_HPP
 
-#include "ClientOperator.hpp"
+#include <rkv/Shard.hpp>
+#include <rkv/Migration.hpp>
+#include <rkv/CompletedMigration.hpp>
+
+#include "Client.hpp"
 
 namespace rkv
 {
-    class MasterClient
+    class MasterClient:rkv::Client
     {
     private:
         using Self = rkv::MasterClient;
     
-
     public:
     
-        MasterClient();
+        template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
+        MasterClient(sharpen::EventEngine &engine,_Iterator begin,_Iterator end,const std::chrono::duration<_Rep,_Period> &restoreTimeout,std::size_t maxTimeoutCount)
+            :Client(engine,begin,end,restoreTimeout,maxTimeoutCount)
+        {}
     
         MasterClient(const Self &other);
     

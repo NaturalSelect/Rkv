@@ -22,10 +22,10 @@
 
 namespace rkv
 {
-    class ClientOperator
+    class Client
     {
     private:
-        using Self = rkv::ClientOperator;
+        using Self = rkv::Client;
     protected:
         static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header);
 
@@ -47,9 +47,6 @@ namespace rkv
 
         void FillLeaderId();
 
-        static constexpr std::uint32_t defaultRestoreTimeout_{5*1000};
-        static constexpr std::size_t defaultMaxTimeoutCount_{10};
-
         sharpen::EventEngine *engine_;
         mutable std::minstd_rand random_;
         std::uniform_int_distribution<std::size_t> distribution_;
@@ -61,7 +58,7 @@ namespace rkv
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
-        ClientOperator(sharpen::EventEngine &engine,_Iterator begin,_Iterator end,const std::chrono::duration<_Rep,_Period> &restoreTimeout,std::size_t maxTimeoutCount)
+        Client(sharpen::EventEngine &engine,_Iterator begin,_Iterator end,const std::chrono::duration<_Rep,_Period> &restoreTimeout,std::size_t maxTimeoutCount)
             :engine_(&engine)
             ,random_(std::random_device{}())
             ,distribution_(1,sharpen::GetRangeSize(begin,end))
@@ -79,16 +76,7 @@ namespace rkv
             }
         }
     
-        ClientOperator(const Self &other) = default;
-    
-        ClientOperator(Self &&other) noexcept = default;
-    
-        inline Self &operator=(const Self &other)
-        {
-            Self tmp{other};
-            std::swap(tmp,*this);
-            return *this;
-        }
+        Client(Self &&other) noexcept;
     
         inline Self &operator=(Self &&other) noexcept
         {
@@ -99,11 +87,14 @@ namespace rkv
                 this->distribution_ = std::move(other.distribution_);
                 this->leaderId_ = std::move(other.leaderId_);
                 this->serverMap_ = std::move(other.serverMap_);
+                this->timer_ = std::move(other.timer_);
+                this->restoreTimeout_ = other.restoreTimeout_;
+                this->maxTimeoutCount_ = other.maxTimeoutCount_;
             }
             return *this;
         }
     
-        ~ClientOperator() noexcept = default;
+        ~Client() noexcept = default;
     
         inline const Self &Const() const noexcept
         {
