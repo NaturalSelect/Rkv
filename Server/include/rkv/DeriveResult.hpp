@@ -10,7 +10,8 @@ namespace rkv
     {
         NotCommit,
         Commited,
-        Appiled
+        Appiled,
+        LeakOfWorker
     };
 }
 

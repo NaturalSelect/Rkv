@@ -8,10 +8,10 @@
 
 namespace rkv
 {
-    class AppendEntiresRequest:public sharpen::BinarySerializable<rkv::AppendEntiresRequest>
+    class AppendEntriesRequest:public sharpen::BinarySerializable<rkv::AppendEntriesRequest>
     {
     private:
-        using Self = rkv::AppendEntiresRequest;
+        using Self = rkv::AppendEntriesRequest;
     
 
         std::vector<rkv::RaftLog> logs_;
@@ -22,11 +22,11 @@ namespace rkv
         sharpen::Uint64 commitIndex_;
     public:
     
-        AppendEntiresRequest() = default;
+        AppendEntriesRequest() = default;
     
-        AppendEntiresRequest(const Self &other) = default;
+        AppendEntriesRequest(const Self &other) = default;
     
-        AppendEntiresRequest(Self &&other) noexcept = default;
+        AppendEntriesRequest(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -49,7 +49,7 @@ namespace rkv
             return *this;
         }
     
-        ~AppendEntiresRequest() noexcept = default;
+        ~AppendEntriesRequest() noexcept = default;
 
         inline std::vector<rkv::RaftLog> &Logs() noexcept
         {

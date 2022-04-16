@@ -80,3 +80,15 @@ rkv::MigrationManger::IndexType rkv::MigrationManger::GenrateIndex() const
     }
     return index;
 }
+
+bool rkv::MigrationManger::Contain(const sharpen::ByteBuffer &beginKey) const noexcept
+{
+    for (auto begin = this->migrations_.begin(),end = this->migrations_.end(); begin != end; ++begin)
+    {
+        if(begin->BeginKey() == beginKey)
+        {
+            return true;
+        }
+    }
+    return false;
+}

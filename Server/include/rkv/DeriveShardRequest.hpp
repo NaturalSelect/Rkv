@@ -14,6 +14,7 @@ namespace rkv
     
         std::uint64_t source_;
         sharpen::ByteBuffer beginKey_;
+        sharpen::ByteBuffer endKey_;
     public:
     
         DeriveShardRequest() = default;
@@ -64,6 +65,16 @@ namespace rkv
         inline const sharpen::ByteBuffer &BeginKey() const noexcept
         {
             return this->beginKey_;
+        }
+
+        inline sharpen::ByteBuffer &EndKey() noexcept
+        {
+            return this->endKey_;
+        }
+
+        inline const sharpen::ByteBuffer &EndKey() const noexcept
+        {
+            return this->endKey_;
         }
 
         std::size_t ComputeSize() const noexcept;

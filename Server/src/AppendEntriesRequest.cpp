@@ -1,6 +1,6 @@
-#include <rkv/AppendEntiresRequest.hpp>
+#include <rkv/AppendEntriesRequest.hpp>
 
-std::size_t rkv::AppendEntiresRequest::ComputeSize() const noexcept
+std::size_t rkv::AppendEntriesRequest::ComputeSize() const noexcept
 {
     std::size_t size{0};
     size += Helper::ComputeSize(this->logs_);
@@ -16,7 +16,7 @@ std::size_t rkv::AppendEntiresRequest::ComputeSize() const noexcept
     return size;
 }
 
-std::size_t rkv::AppendEntiresRequest::LoadFrom(const char *data,std::size_t size)
+std::size_t rkv::AppendEntriesRequest::LoadFrom(const char *data,std::size_t size)
 {
     if(size < 5 + Helper::ComputeSize(this->leaderId_))
     {
@@ -57,7 +57,7 @@ std::size_t rkv::AppendEntiresRequest::LoadFrom(const char *data,std::size_t siz
     return offset;
 }
 
-std::size_t rkv::AppendEntiresRequest::UnsafeStoreTo(char *data) const noexcept
+std::size_t rkv::AppendEntriesRequest::UnsafeStoreTo(char *data) const noexcept
 {
     std::size_t offset{0};
     offset += Helper::UnsafeStoreTo(this->logs_,data);

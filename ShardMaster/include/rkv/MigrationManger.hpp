@@ -64,7 +64,7 @@ namespace rkv
         void Flush();
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::Migration&>())>
-        inline void GetMigrations(_InsertIterator inserter,const sharpen::IpEndPoint &destination)
+        inline void GetMigrations(_InsertIterator inserter,const sharpen::IpEndPoint &destination) const
         {
             for (auto begin = this->migrations_.begin(),end = this->migrations_.end(); begin != end; ++begin)
             {
@@ -76,7 +76,7 @@ namespace rkv
         }
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::Migration&>())>
-        inline void GetMigrations(_InsertIterator inserter,sharpen::Uint64 groupId)
+        inline void GetMigrations(_InsertIterator inserter,sharpen::Uint64 groupId) const
         {
             for (auto begin = this->migrations_.begin(),end = this->migrations_.end(); begin != end; ++begin)
             {
@@ -87,8 +87,22 @@ namespace rkv
             }
         }
 
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::Migration&>())>
+        inline void GetMigrations(_InsertIterator inserter,const sharpen::ByteBuffer &beginKey) const
+        {
+            for (auto begin = this->migrations_.begin(),end = this->migrations_.end(); begin != end; ++begin)
+            {
+                if(begin->BeginKey() == beginKey)
+                {
+                    *inserter++ = *begin;
+                }   
+            }
+        }
+
+        bool Contain(const sharpen::ByteBuffer &beginKey) const noexcept;
+
         template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&>(),std::declval<rkv::Migration&>() = *std::declval<_Iterator&>())>
-        inline std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term)
+        inline std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term) const
         {
             std::size_t size{sharpen::GetRangeSize(begin,end)};
             if(size)
@@ -123,7 +137,7 @@ namespace rkv
         }
 
         template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&>(),std::declval<std::uint64_t&>() = *std::declval<_Iterator&>())>
-        inline std::uint64_t GenrateRemoveLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term)
+        inline std::uint64_t GenrateRemoveLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term) const
         {
             std::size_t size{sharpen::GetRangeSize(begin,end)};
             if(size)

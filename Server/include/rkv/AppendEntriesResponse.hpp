@@ -7,22 +7,22 @@
 
 namespace rkv
 {
-    class AppendEntiresResponse:public sharpen::BinarySerializable<rkv::AppendEntiresResponse>
+    class AppendEntriesResponse:public sharpen::BinarySerializable<rkv::AppendEntriesResponse>
     {
     private:
-        using Self = rkv::AppendEntiresResponse;
+        using Self = rkv::AppendEntriesResponse;
     
         bool success_;
         std::uint64_t term_;
         std::uint64_t appiledIndex_;
     public:
-        AppendEntiresResponse() = default;
+        AppendEntriesResponse() = default;
 
-        explicit AppendEntiresResponse(bool success);
+        explicit AppendEntriesResponse(bool success);
     
-        AppendEntiresResponse(const Self &other) = default;
+        AppendEntriesResponse(const Self &other) = default;
     
-        AppendEntiresResponse(Self &&other) noexcept = default;
+        AppendEntriesResponse(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -42,7 +42,7 @@ namespace rkv
             return *this;
         }
     
-        ~AppendEntiresResponse() noexcept = default;
+        ~AppendEntriesResponse() noexcept = default;
 
         inline bool Success() const noexcept
         {

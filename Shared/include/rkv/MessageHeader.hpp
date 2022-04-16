@@ -8,8 +8,8 @@ namespace rkv
 {
     enum class MessageType:std::uint64_t
     {
-        AppendEntiresRequest,
-        AppendEntiresResponse,
+        AppendEntriesRequest,
+        AppendEntriesResponse,
         VoteRequest,
         VoteResponse,
         LeaderRedirectRequest,
@@ -25,7 +25,7 @@ namespace rkv
         GetShardByIdRequest,
         GetShardByIdResponse,
         DeriveShardRequest,
-        AdjsustShardReponse,
+        DeriveShardReponse,
         InstallShardRequst,
         InstallShardResponse,
         GetMigrationsRequest,

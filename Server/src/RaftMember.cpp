@@ -1,8 +1,8 @@
 #include <rkv/RaftMember.hpp>
 
 #include <rkv/MessageHeader.hpp>
-#include <rkv/AppendEntiresRequest.hpp>
-#include <rkv/AppendEntiresResponse.hpp>
+#include <rkv/AppendEntriesRequest.hpp>
+#include <rkv/AppendEntriesResponse.hpp>
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
 
@@ -38,7 +38,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
     try
     {
         this->ConnectToEndPoint();
-        rkv::AppendEntiresRequest request;
+        rkv::AppendEntriesRequest request;
         request.SetCommitIndex(proposal->GetCommitIndex());
         request.SetLeaderTerm(proposal->GetTerm());
         request.SetPrevLogIndex(this->currentIndex_);
@@ -58,14 +58,14 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
         }
         sharpen::ByteBuffer buf;
         request.StoreTo(buf);
-        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntiresRequest,buf.GetSize())};
+        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntriesRequest,buf.GetSize())};
         this->channel_->WriteObjectAsync(header);
         this->channel_->WriteAsync(buf);
         if(this->channel_->ReadObjectAsync(header) != sizeof(header))
         {
             sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
         }
-        if(rkv::GetMessageType(header) != rkv::MessageType::AppendEntiresResponse)
+        if(rkv::GetMessageType(header) != rkv::MessageType::AppendEntriesResponse)
         {
             throw std::logic_error("invalid appentires response");
         }
@@ -75,7 +75,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
         {
             sharpen::ThrowSystemError(sharpen::ErrorConnectionAborted);
         }
-        rkv::AppendEntiresResponse response;
+        rkv::AppendEntriesResponse response;
         response.Unserialize().LoadFrom(buf);
         if(response.Success())
         {

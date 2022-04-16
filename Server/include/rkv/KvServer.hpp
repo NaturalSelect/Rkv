@@ -39,7 +39,7 @@ namespace rkv
 
         void OnDeleteFail(sharpen::INetStreamChannel &channel);
 
-        void OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+        void OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 

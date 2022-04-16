@@ -11,8 +11,8 @@
 #include <rkv/PutResponse.hpp>
 #include <rkv/DeleteRequest.hpp>
 #include <rkv/DeleteResponse.hpp>
-#include <rkv/AppendEntiresRequest.hpp>
-#include <rkv/AppendEntiresResponse.hpp>
+#include <rkv/AppendEntriesRequest.hpp>
+#include <rkv/AppendEntriesResponse.hpp>
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
 
@@ -135,8 +135,7 @@ void rkv::KvServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::Byt
         do
         {
             commitSize = 0;
-            //result = this->ProposeAppendEntires();
-            result = this->group_->ProposeAppendEntires();
+            result = this->group_->ProposeAppendEntries();
             if(!result)
             {
                 break;
@@ -196,7 +195,7 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
         do
         {
             commitSize = 0;
-            result = this->group_->ProposeAppendEntires();
+            result = this->group_->ProposeAppendEntries();
             if(!result)
             {
                 break;
@@ -224,10 +223,10 @@ void rkv::KvServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::
     channel.WriteAsync(resBuf,sz);
 }
 
-void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::KvServer::OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     this->group_->DelayCycle();
-    rkv::AppendEntiresRequest request;
+    rkv::AppendEntriesRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
     std::uint64_t currentTerm{0};
@@ -246,13 +245,13 @@ void rkv::KvServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sh
     {
         std::printf("[Info]Channel want to append %zu entires to host but failure\n",request.Logs().size());
     }
-    rkv::AppendEntiresResponse response;
+    rkv::AppendEntriesResponse response;
     response.SetResult(result);
     response.SetTerm(currentTerm);
     response.SetAppiledIndex(lastAppiled);
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntiresResponse,resBuf.GetSize())};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntriesResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }
@@ -331,9 +330,9 @@ void rkv::KvServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to delete a key value pair\n",ip,ep.GetPort());
                 this->OnDelete(*channel,buf);
                 break;
-            case rkv::MessageType::AppendEntiresRequest:
+            case rkv::MessageType::AppendEntriesRequest:
                 std::printf("[Info]Channel %s:%hu want to append entires\n",ip,ep.GetPort());
-                this->OnAppendEntires(*channel,buf);
+                this->OnAppendEntries(*channel,buf);
                 break;
             case rkv::MessageType::VoteRequest:
                 std::printf("[Info]Channel %s:%hu want to request a vote\n",ip,ep.GetPort());

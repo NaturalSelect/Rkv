@@ -50,7 +50,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
-bool rkv::RaftGroup::ProposeAppendEntires()
+bool rkv::RaftGroup::ProposeAppendEntries()
 {
     rkv::LogProposal proposal{this->raft_.GetPersistenceStorage()};
     proposal.SetCommitIndex(this->raft_.GetCommitIndex());
@@ -96,7 +96,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::LeaderLoop() noexcept
     {
         std::unique_lock<sharpen::AsyncMutex> lock{*this->raftLock_,std::adopt_lock};
         std::uint64_t index{this->raft_.GetLastIndex()};
-        result = this->ProposeAppendEntires();
+        result = this->ProposeAppendEntries();
         for (auto begin = this->raft_.Members().begin(),end = this->raft_.Members().end(); begin != end; ++begin)
         {
             if(begin->second.GetCurrentIndex() >= index)

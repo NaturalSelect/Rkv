@@ -5,19 +5,24 @@
 
 #include <rkv/MessageHeader.hpp>
 #include <rkv/LeaderRedirectResponse.hpp>
-#include <rkv/AppendEntiresRequest.hpp>
-#include <rkv/AppendEntiresResponse.hpp>
+#include <rkv/AppendEntriesRequest.hpp>
+#include <rkv/AppendEntriesResponse.hpp>
 #include <rkv/VoteRequest.hpp>
 #include <rkv/VoteResponse.hpp>
 #include <rkv/GetShardByKeyRequest.hpp>
 #include <rkv/GetShardByKeyResponse.hpp>
 #include <rkv/GetShardByIdRequest.hpp>
 #include <rkv/GetShardByIdResponse.hpp>
+#include <rkv/DeriveShardRequest.hpp>
+#include <rkv/DeriveShardResponse.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
     ,app_(nullptr)
     ,group_(nullptr)
+    ,random_(std::random_device{}())
+    ,distribution_(1,option.GetWorkersSize())
+    ,workers_()
     ,shards_(nullptr)
     ,migrations_(nullptr)
     ,completedMigrations_(nullptr)
@@ -46,11 +51,18 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
         this->group_->Raft().Members().emplace(*begin,std::move(member));
     }
     //load workers
+    this->workers_.reserve(option.GetWorkersSize());
     for (auto begin = option.WorkersBegin(),end = option.WorkersEnd(); begin != end; ++begin)
     {
         this->workers_.emplace_back(*begin);   
     }
     assert(!this->workers_.empty());
+}
+
+sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
+{
+    std::size_t index{this->distribution_(this->random_) - 1};
+    return this->workers_[index];
 }
 
 void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
@@ -68,10 +80,10 @@ void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) co
     channel.WriteAsync(buf,sz);
 }
 
-void rkv::MasterServer::OnAppendEntires(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     this->group_->DelayCycle();
-    rkv::AppendEntiresRequest request;
+    rkv::AppendEntriesRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
     std::uint64_t currentTerm{0};
@@ -96,13 +108,13 @@ void rkv::MasterServer::OnAppendEntires(sharpen::INetStreamChannel &channel,cons
     {
         std::printf("[Info]Channel want to append %zu entires to host but failure\n",request.Logs().size());
     }
-    rkv::AppendEntiresResponse response;
+    rkv::AppendEntriesResponse response;
     response.SetResult(result);
     response.SetTerm(currentTerm);
     response.SetAppiledIndex(lastAppiled);
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntiresResponse,resBuf.GetSize())};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntriesResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }
@@ -163,6 +175,7 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
     request.Unserialize().LoadFrom(buf);
     rkv::GetShardByIdResponse response;
     {
+        this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
         this->shards_->GetShards(response.ShardsInserter(),request.Id());
     }
@@ -171,6 +184,80 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
+}
+
+void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
+    {
+        rkv::DeriveShardResponse response;
+        response.SetResult(rkv::DeriveResult::NotCommit);
+        char resBuf[sizeof(response)];
+        std::size_t size{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeriveShardReponse,size)};
+        channel.WriteObjectAsync(header);
+        channel.WriteAsync(resBuf,size);
+        return;
+    }
+    rkv::DeriveShardRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::DeriveShardResponse response;
+    response.SetResult(rkv::DeriveResult::NotCommit);
+    {
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> statusLock{this->statusLock_,std::adopt_lock};
+        const rkv::Shard *shard{this->shards_->FindShardPtr(request.BeginKey())};
+        if(shard)
+        {
+            statusLock.unlock();
+            response.SetResult(DeriveResult::Appiled);
+        }
+        else
+        {
+            if(this->migrations_->Contain(request.BeginKey()))
+            {
+                statusLock.unlock();
+                response.SetResult(DeriveResult::Appiled);
+            }
+            else
+            {
+                //TODO
+                //select workers
+                //create migrations
+                //commit changes
+                //notify workers
+                this->statusLock_.UpgradeFromRead();
+                std::vector<sharpen::IpEndPoint> workers;
+                workers.reserve(Self::replicationFactor_);
+                std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
+                if(count == Self::replicationFactor_)
+                {
+                    std::vector<rkv::Migration> migrations;
+                    migrations.reserve(count);
+                    this->GenrateMigrations(std::back_inserter(migrations),workers.begin(),workers.end(),this->migrations_->GetNextMirgationId(),this->migrations_->GetNextGroupId(),request.GetSource(),request.BeginKey(),request.EndKey());
+                    std::vector<rkv::RaftLog> logs;
+                    logs.reserve(count);
+                    std::uint64_t index{this->group_->Raft().GetLastIndex() + 1};
+                    std::uint64_t term{this->group_->Raft().GetCurrentTerm()};
+                    index = this->migrations_->GenrateEmplaceLogs(std::back_inserter(logs),migrations.begin(),migrations.end(),index,term);
+                    AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                    if(result == AppendEntriesResult::Appiled)
+                    {
+
+                    }
+                }
+                else
+                {
+                    response.SetResult(rkv::DeriveResult::LeakOfWorker);
+                }
+            }
+        }
+    }
+    char resBuf[sizeof(response)];
+    std::size_t size{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeriveShardReponse,size)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,size);
 }
 
 void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
@@ -206,9 +293,9 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             }
             switch (type)
             {
-            case rkv::MessageType::AppendEntiresRequest:
+            case rkv::MessageType::AppendEntriesRequest:
                 std::printf("[Info]Channel %s:%hu want to append entires\n",ip,ep.GetPort());
-                this->OnAppendEntires(*channel,buf);
+                this->OnAppendEntries(*channel,buf);
                 break;
             case rkv::MessageType::VoteRequest:
                 std::printf("[Info]Channel %s:%hu want to request a vote\n",ip,ep.GetPort());

@@ -1,6 +1,6 @@
-#include <rkv/AppendEntiresResponse.hpp>
+#include <rkv/AppendEntriesResponse.hpp>
 
-std::size_t rkv::AppendEntiresResponse::ComputeSize() const noexcept
+std::size_t rkv::AppendEntriesResponse::ComputeSize() const noexcept
 {
     std::size_t size{0};
     size += Helper::ComputeSize(this->success_);
@@ -11,7 +11,7 @@ std::size_t rkv::AppendEntiresResponse::ComputeSize() const noexcept
     return size;
 }
 
-std::size_t rkv::AppendEntiresResponse::LoadFrom(const char *data,std::size_t size)
+std::size_t rkv::AppendEntriesResponse::LoadFrom(const char *data,std::size_t size)
 {
     if(size < 3)
     {
@@ -35,7 +35,7 @@ std::size_t rkv::AppendEntiresResponse::LoadFrom(const char *data,std::size_t si
     return offset;
 }
 
-std::size_t rkv::AppendEntiresResponse::UnsafeStoreTo(char *data) const noexcept
+std::size_t rkv::AppendEntriesResponse::UnsafeStoreTo(char *data) const noexcept
 {
     std::size_t offset{0};
     offset += Helper::UnsafeStoreTo(this->success_,data);

@@ -74,7 +74,7 @@ namespace rkv
             return *this;
         }
 
-        bool ProposeAppendEntires();
+        bool ProposeAppendEntries();
     };   
 }
 
