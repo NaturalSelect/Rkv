@@ -28,7 +28,7 @@ namespace rkv
     
         static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key);
 
-        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&>())>
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&&>())>
         static void GetShardById(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
         {
             rkv::GetShardByIdRequest request;
@@ -48,8 +48,23 @@ namespace rkv
 
         static rkv::DeriveResult DeriveNewShard(sharpen::INetStreamChannel &channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
 
-        template<typename _InsertIterator>
-        static void GetMigrationsById(sharpen::INetStreamChannel &channel);
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Migration&&>())>
+        static void GetMigrationsByDestination(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &destination)
+        {
+            rkv::GetMigrationsRequest request;
+            request.Destination() = destination;
+            sharpen::ByteBuffer buf;
+            request.Serialize().StoreTo(buf);
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetMigrationsRequest,buf.GetSize())};
+            Self::WriteMessage(channel,header,buf);
+            Self::ReadMessage(channel,rkv::MessageType::GetMigrationsResponse,buf);
+            rkv::GetMigrationsResponse response;
+            response.Unserialize().LoadFrom(buf);
+            for (auto begin = response.MigrationBegin(),end = response.MigrationEnd(); begin != end; ++begin)
+            {
+                *inserter++ = *begin;
+            }
+        }
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -74,11 +89,35 @@ namespace rkv
         void GetShard(_InsertIterator inserter,const sharpen::IpEndPoint &id)
         {
             this->FillLeaderId();
-            auto conn{this->GetConnection(this->leaderId_.Get())};
-            Self::GetShardById(*conn,inserter,id);
+            try
+            {
+                auto conn{this->GetConnection(this->leaderId_.Get())};
+                Self::GetShardById(*conn,inserter,id);
+            }
+            catch(const std::exception&)
+            {
+                this->leaderId_.Reset();
+                throw;
+            }
         }
 
         rkv::DeriveResult DeriveShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
+
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Migration&&>())>
+        void GetMigrations(_InsertIterator inserter,const sharpen::IpEndPoint &destination)
+        {
+            this->FillLeaderId();
+            try
+            {
+                auto conn{this->GetConnection(this->leaderId_.Get())};
+                Self::GetMigrationsByDestination(*conn,inserter,destination);
+            }
+            catch(const std::exception&)
+            {
+                this->leaderId_.Reset();
+                throw;
+            }
+        }
     };
 }
 

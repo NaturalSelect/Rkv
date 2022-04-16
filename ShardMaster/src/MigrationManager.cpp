@@ -52,7 +52,7 @@ void rkv::MigrationManger::Flush()
                 migration.Unserialize().LoadFrom(buf);
                 if(migration.GetId() > maxId)
                 {
-                    maxId = migration.GetGroupId();
+                    maxId = migration.GetId();
                 }
                 if(migration.GetGroupId() > maxGroupId)
                 {

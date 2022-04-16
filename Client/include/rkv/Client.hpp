@@ -9,16 +9,8 @@
 #include <sharpen/IpEndPoint.hpp>
 #include <sharpen/IteratorOps.hpp>
 
-#include <rkv/PutRequest.hpp>
-#include <rkv/PutResponse.hpp>
-#include <rkv/GetRequest.hpp>
-#include <rkv/GetResponse.hpp>
-#include <rkv/DeleteRequest.hpp>
-#include <rkv/DeleteResponse.hpp>
 #include <rkv/LeaderRedirectResponse.hpp>
 #include <rkv/MessageHeader.hpp>
-
-#include "GetPolicy.hpp"
 
 namespace rkv
 {

@@ -19,6 +19,7 @@ std::size_t rkv::DeriveShardRequest::LoadFrom(const char *data,std::size_t size)
     std::size_t offset{0};
     sharpen::Varuint64 builder{0};
     offset += Helper::LoadFrom(builder,data,size);
+    this->source_ = builder.Get();
     if(size < offset + 2)
     {
         throw sharpen::DataCorruptionException("adjust shard request corruption");
