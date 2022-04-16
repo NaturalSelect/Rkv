@@ -6,6 +6,8 @@
 #include <rkv/Migration.hpp>
 #include <rkv/CompletedMigration.hpp>
 #include <rkv/Client.hpp>
+#include <rkv/GetShardByIdRequest.hpp>
+#include <rkv/GetShardByIdResponse.hpp>
 
 namespace rkv
 {
@@ -16,7 +18,23 @@ namespace rkv
     
         static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key);
 
-        
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&>())>
+        static void GetShardById(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
+        {
+            rkv::GetShardByIdRequest request;
+            request.Id() = id;
+            sharpen::ByteBuffer buf;
+            request.Serialize().StoreTo(buf);
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdRequest,buf.GetSize())};
+            Self::WriteMessage(channel,header,buf);
+            Self::ReadMessage(channel,rkv::MessageType::GetShardByIdResponse,buf);
+            rkv::GetShardByIdResponse response;
+            response.Unserialize().LoadFrom(buf);
+            for (auto begin = response.ShardsBegin(),end = response.ShardsEnd(); begin != end; ++begin)
+            {
+                *inserter++ = std::move(*begin);
+            }
+        }
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -36,6 +54,14 @@ namespace rkv
         }
 
         sharpen::Optional<rkv::Shard> GetShard(const sharpen::ByteBuffer &key);
+
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&>())>
+        void GetShard(_InsertIterator inserter,const sharpen::IpEndPoint &id)
+        {
+            this->FillLeaderId();
+            auto conn{this->GetConnection(this->leaderId_.Get())};
+            Self::GetShardById(*conn,inserter,id);
+        }
     };
 }
 

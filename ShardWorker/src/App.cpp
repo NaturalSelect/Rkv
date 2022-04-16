@@ -85,7 +85,8 @@ static void Entry()
     sharpen::IpEndPoint id;
     id.SetAddrByString("127.0.0.1");
     id.SetPort(8083);
-    
+    std::vector<rkv::Shard> shards;
+    client.GetShard(std::back_inserter(shards),id);
     sharpen::CleanupNetSupport();
 }
 

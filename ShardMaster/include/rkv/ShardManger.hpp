@@ -103,7 +103,14 @@ namespace rkv
         {
             for (auto begin = this->shards_.begin(),end = this->shards_.end(); begin != end; ++begin)
             {
-                *inserter++ = *begin;   
+                for (auto workerBegin = begin->Workers().begin(),workerEnd = begin->Workers().end(); workerBegin != workerEnd; ++workerBegin)
+                {
+                    if(*workerBegin == id)
+                    {
+                        *inserter++ = *begin;
+                        break;
+                    }
+                }
             }
         }
 

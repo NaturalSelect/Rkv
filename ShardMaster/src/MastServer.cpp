@@ -275,11 +275,73 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
     {
         this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
-        this->shards_->GetShards(response.ShardsInserter(),request.Id());
+        if(this->shards_->Empty())
+        {
+            this->statusLock_.UpgradeFromRead();
+            if(this->shards_->Empty())
+            {
+                std::uint64_t index{0};
+                std::uint64_t term{0};
+                {
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
+                    if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
+                    {
+                        std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
+                        index = this->group_->Raft().GetLastIndex();
+                        if(lastAppiled == index)
+                        {
+                            index += 1;
+                            term = this->group_->Raft().GetCurrentTerm();
+                        }
+                        else
+                        {
+                            index = 0;
+                        }
+                    }
+                }
+                if(index)
+                {
+                    std::puts("[Info]Try to create first shard");
+                    std::vector<sharpen::IpEndPoint> workers;
+                    workers.reserve(Self::replicationFactor_);
+                    std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
+                    std::printf("[Info]Select %zu workers\n",workers.size());
+                    if(count == Self::replicationFactor_)
+                    {
+                        rkv::Shard shard;
+                        shard.SetId(this->shards_->GetNextIndex());
+                        for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
+                        {
+                            shard.Workers().emplace_back(*begin);
+                        }
+                        shard.BeginKey() = Self::zeroKey_;
+                        std::vector<rkv::RaftLog> logs;
+                        logs.reserve(2);
+                        index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
+                        rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                        switch (result)
+                        {
+                        case rkv::AppendEntriesResult::Appiled:
+                            std::puts("[Info]New shard has been appiled");
+                            break;
+                        case rkv::AppendEntriesResult::Commited:
+                            std::puts("[Info]New shard has been commited");
+                            break;
+                        case rkv::AppendEntriesResult::NotCommit:
+                            std::puts("[Info]New shard has been commited");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        this->shards_->GetShards(response.GetShardsInserter(),request.Id());
     }
+    std::printf("[Info]Got %zu shards\n",response.GetSize());
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
+    std::puts("[Info]Write response");
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }

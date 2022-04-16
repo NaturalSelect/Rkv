@@ -10,7 +10,7 @@
 
 namespace rkv
 {
-    class GetShardByIdResponse:public sharpen::BinarySerializable<rkv::Shard>
+    class GetShardByIdResponse:public sharpen::BinarySerializable<rkv::GetShardByIdResponse>
     {
     private:
         using Self = rkv::GetShardByIdResponse;
@@ -50,7 +50,7 @@ namespace rkv
             return *this;
         }
 
-        inline std::back_insert_iterator<Shards> ShardsInserter() noexcept
+        inline std::back_insert_iterator<Shards> GetShardsInserter() noexcept
         {
             return std::back_inserter(this->shards_);
         }
@@ -73,6 +73,16 @@ namespace rkv
         inline ConstIterator ShardsEnd() const noexcept
         {
             return this->shards_.end();
+        }
+
+        inline bool Empty() const noexcept
+        {
+            return this->shards_.empty();
+        }
+
+        inline std::size_t GetSize() const noexcept
+        {
+            return this->shards_.size();
         }
 
         std::size_t ComputeSize() const noexcept;
