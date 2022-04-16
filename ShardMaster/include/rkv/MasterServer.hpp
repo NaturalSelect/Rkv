@@ -123,6 +123,12 @@ namespace rkv
 
         void OnDerviveShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
+        void OnGetCompletedMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnGetMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnCompleteMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         mutable std::minstd_rand random_;

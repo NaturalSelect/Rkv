@@ -2,9 +2,9 @@
 #ifndef _RKV_DERIVESHARDRESPONSE_HPP
 #define _RKV_DERIVESHARDRESPONSE_HPP
 
-#include "DeriveResult.hpp"
-
 #include <sharpen/BinarySerializable.hpp>
+
+#include "DeriveResult.hpp"
 
 namespace rkv
 {

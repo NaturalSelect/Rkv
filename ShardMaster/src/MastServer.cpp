@@ -15,6 +15,7 @@
 #include <rkv/GetShardByIdResponse.hpp>
 #include <rkv/DeriveShardRequest.hpp>
 #include <rkv/DeriveShardResponse.hpp>
+#include <rkv/GetCompletedMigrationsRequest.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
@@ -263,6 +264,21 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
     channel.WriteAsync(resBuf,size);
 }
 
+void rkv::MasterServer::OnGetCompletedMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    
+}
+
+void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+
+}
+
+void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+
+}
+
 void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
@@ -311,6 +327,12 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             case rkv::MessageType::GetShardByIdRequest:
                 std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
                 this->OnGetShardById(*channel,buf);
+                break;
+            case rkv::MessageType::CompleteMigrationRequest:
+                break;
+            case rkv::MessageType::GetCompletedMigrationsRequest:
+                break;
+            case rkv::MessageType::GetMigrationsRequest:
                 break;
             default:
                 std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());

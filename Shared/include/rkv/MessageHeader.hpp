@@ -30,12 +30,12 @@ namespace rkv
         InstallShardResponse,
         GetMigrationsRequest,
         GetMigrationsResponse,
-        GetCompletedMigrations,
-        GetCompletedMigrations,
+        GetCompletedMigrationsRequest,
+        GetCompletedMigrationsResponse,
         DeleteCompletedMigrationRequest,
         DeleteCompletedMigrationResponse,
-        CompleteMigration, //worker to master
-        MigrationComleted  //master to worker
+        CompleteMigrationRequest, //worker to master
+        MigrationComletedRequest  //master to worker
     };
 
     struct MessageHeader
