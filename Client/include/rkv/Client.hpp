@@ -22,18 +22,18 @@
 
 namespace rkv
 {
-    class Client
+    class Client:public sharpen::Noncopyable
     {
     private:
         using Self = rkv::Client;
     protected:
-        static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header);
+        static void WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header);
 
-        static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request);
+        static void WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request);
 
-        static void ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
+        static void ReadMessage(sharpen::INetStreamChannel &channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
 
-        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel);
+        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::INetStreamChannel &channel);
 
         sharpen::IpEndPoint GetRandomId() const noexcept;
 

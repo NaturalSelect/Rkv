@@ -5,8 +5,7 @@
 #include <rkv/Shard.hpp>
 #include <rkv/Migration.hpp>
 #include <rkv/CompletedMigration.hpp>
-
-#include "Client.hpp"
+#include <rkv/Client.hpp>
 
 namespace rkv
 {
@@ -15,6 +14,9 @@ namespace rkv
     private:
         using Self = rkv::MasterClient;
     
+        static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key);
+
+        
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -22,18 +24,9 @@ namespace rkv
             :Client(engine,begin,end,restoreTimeout,maxTimeoutCount)
         {}
     
-        MasterClient(const Self &other);
+        MasterClient(Self &&other) noexcept = default;
     
-        MasterClient(Self &&other) noexcept;
-    
-        inline Self &operator=(const Self &other)
-        {
-            Self tmp{other};
-            std::swap(tmp,*this);
-            return *this;
-        }
-    
-        Self &operator=(Self &&other) noexcept;
+        Self &operator=(Self &&other) noexcept = default;
     
         ~MasterClient() noexcept = default;
     
@@ -41,6 +34,8 @@ namespace rkv
         {
             return *this;
         }
+
+        sharpen::Optional<rkv::Shard> GetShard(const sharpen::ByteBuffer &key);
     };
 }
 

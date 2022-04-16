@@ -23,6 +23,7 @@ std::size_t rkv::GetShardByKeyResponse::LoadFrom(const char *data,std::size_t si
         {
             throw sharpen::DataCorruptionException("get shard by key response corruption");
         }
+        this->shard_.Construct();
         offset += Helper::LoadFrom(this->shard_.Get(),data + offset,size - offset);
     }
     else

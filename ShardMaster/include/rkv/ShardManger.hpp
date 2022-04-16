@@ -79,6 +79,7 @@ namespace rkv
                     shard.Serialize().StoreTo(buf);
                     log.Value() = std::move(buf);
                     *inserter++ = std::move(log);
+                    ++begin;
                 }
                 rkv::RaftLog log;
                 log.SetOperation(rkv::RaftLog::Operation::Put);

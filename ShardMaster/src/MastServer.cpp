@@ -22,6 +22,8 @@
 #include <rkv/CompleteMigrationRequest.hpp>
 #include <rkv/CompleteMigrationResponse.hpp>
 
+sharpen::ByteBuffer rkv::MasterServer::zeroKey_;
+
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
     ,app_(nullptr)
@@ -48,6 +50,14 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     {
         throw std::bad_alloc();
     }
+    //load members
+    std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
+    for (auto begin = option.MembersBegin(),end = option.MembersEnd(); begin != end; ++begin)
+    {
+        rkv::RaftMember member{*begin,*this->engine_};
+        member.SetCurrentIndex(lastAppiled);
+        this->group_->Raft().Members().emplace(*begin,std::move(member));
+    }
     //load workers
     this->workers_.reserve(option.GetWorkersSize());
     for (auto begin = option.WorkersBegin(),end = option.WorkersEnd(); begin != end; ++begin)
@@ -57,11 +67,6 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
     assert(!this->workers_.empty());
     //set callback
     this->group_->SetAppendEntriesCallback(std::bind(&Self::FlushStatusWithLock,this));
-    //set a start shard
-    if(this->shards_->Empty())
-    {
-
-    }
 }
 
 sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
@@ -76,12 +81,15 @@ bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) const no
     sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
     channel->Bind(ep);
     channel->Register(*this->engine_);
+    char ip[21] = {};
+    endpoint.GetAddrString(ip,sizeof(ip));
     try
     {
         channel->ConnectAsync(endpoint);
     }
     catch(const std::exception &ignore)
     {
+        std::printf("[Error]Cannot connect %s:%hu because %s\n",ip,endpoint.GetPort(),ignore.what());
         static_cast<void>(ignore);
         return false;
     }
@@ -185,6 +193,67 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
     {
         this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
+        if(this->shards_->Empty())
+        {
+            this->statusLock_.UpgradeFromRead();
+            //double check
+            if(this->shards_->Empty())
+            {
+                std::uint64_t index{0};
+                std::uint64_t term{0};
+                {
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
+                    if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
+                    {
+                        std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
+                        index = this->group_->Raft().GetLastIndex();
+                        if(lastAppiled == index)
+                        {
+                            index += 1;
+                            term = this->group_->Raft().GetCurrentTerm();
+                        }
+                        else
+                        {
+                            index = 0;
+                        }
+                    }
+                }
+                if(index)
+                {
+                    std::puts("[Info]Try to create first shard");
+                    std::vector<sharpen::IpEndPoint> workers;
+                    workers.reserve(Self::replicationFactor_);
+                    std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
+                    std::printf("[Info]Select %zu workers\n",workers.size());
+                    if(count == Self::replicationFactor_)
+                    {
+                        rkv::Shard shard;
+                        shard.SetId(this->shards_->GetNextIndex());
+                        for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
+                        {
+                            shard.Workers().emplace_back(*begin);
+                        }
+                        shard.BeginKey() = Self::zeroKey_;
+                        std::vector<rkv::RaftLog> logs;
+                        logs.reserve(2);
+                        index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
+                        rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                        switch (result)
+                        {
+                        case rkv::AppendEntriesResult::Appiled:
+                            std::puts("[Info]New shard has been appiled");
+                            break;
+                        case rkv::AppendEntriesResult::Commited:
+                            std::puts("[Info]New shard has been commited");
+                            break;
+                        case rkv::AppendEntriesResult::NotCommit:
+                            std::puts("[Info]New shard has been commited");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
         if(shard)
         {

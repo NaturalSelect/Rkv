@@ -37,6 +37,8 @@ namespace rkv
 
         static constexpr std::size_t reverseLogsCount_{16};
 
+        static sharpen::ByteBuffer zeroKey_;
+
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
 
         bool TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept;
@@ -129,6 +131,7 @@ namespace rkv
             {
                 this->group_->Raft().SetCommitIndex(commitIndex);
                 this->group_->Raft().ApplyLogs(Raft::LostPolicy::Ignore);
+                this->FlushStatus();
                 return rkv::AppendEntriesResult::Appiled;
             }
             return rkv::AppendEntriesResult::Commited;

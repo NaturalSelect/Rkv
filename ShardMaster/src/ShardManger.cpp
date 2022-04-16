@@ -47,6 +47,7 @@ void rkv::ShardManger::Flush()
         std::uint64_t count{countBuf.Get().As<std::uint64_t>()};
         if(count != this->shards_.size())
         {
+            std::printf("[Info]Load %zu shards\n",count);
             this->shards_.clear();
             this->shards_.reserve(sharpen::IntCast<std::size_t>(count));
             for (std::size_t i = 0; i != count; ++i)
