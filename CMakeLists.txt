@@ -19,6 +19,10 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/ShardWorker/src")
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/ShardMaster/src")
 
+add_subdirectory("${PROJECT_SOURCE_DIR}/ShardMasterClient/src")
+
+add_subdirectory("${PROJECT_SOURCE_DIR}/ShardClient/src")
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)

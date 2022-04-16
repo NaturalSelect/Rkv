@@ -130,7 +130,6 @@ void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
     if(result)
     {
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
-        std::puts("[Info]Flush shards");
         {
             this->statusLock_.LockWrite();
             std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};

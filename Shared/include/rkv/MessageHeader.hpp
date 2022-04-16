@@ -26,8 +26,6 @@ namespace rkv
         GetShardByIdResponse,
         DeriveShardRequest,
         DeriveShardReponse,
-        InstallShardRequst,
-        InstallShardResponse,
         GetMigrationsRequest,
         GetMigrationsResponse,
         GetCompletedMigrationsRequest,
@@ -36,7 +34,8 @@ namespace rkv
         DeleteCompletedMigrationResponse,
         CompleteMigrationRequest, //worker to master
         CompleteMigrationResponse,
-        MigrationComletedRequest  //master to worker
+        MigrationComletedRequest,  //master to worker
+        MigrationCompletedResponse
     };
 
     struct MessageHeader
