@@ -56,7 +56,7 @@ namespace rkv
         }
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator &>()++ = std::declval<const rkv::CompletedMigration &>())>
-        inline void GetCompletedMigrations(_InsertIterator inserter,std::uint64_t beginId,std::uint64_t source)
+        inline void GetCompletedMigrations(_InsertIterator inserter,std::uint64_t source,std::uint64_t beginId)
         {
             std::size_t size{this->migrations_.size()};
             if(size >= beginId)

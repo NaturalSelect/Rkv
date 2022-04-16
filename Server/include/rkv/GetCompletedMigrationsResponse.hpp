@@ -21,11 +21,11 @@ namespace rkv
         Migrations migrations_;
     public:
     
-        GetCompletedMigrationsResponse();
+        GetCompletedMigrationsResponse() = default;
     
-        GetCompletedMigrationsResponse(const Self &other);
+        GetCompletedMigrationsResponse(const Self &other) = default;
     
-        GetCompletedMigrationsResponse(Self &&other) noexcept;
+        GetCompletedMigrationsResponse(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -34,7 +34,14 @@ namespace rkv
             return *this;
         }
     
-        Self &operator=(Self &&other) noexcept;
+        inline Self &operator=(Self &&other) noexcept
+        {
+            if(this != std::addressof(other))
+            {
+                this->migrations_ = std::move(other.migrations_);
+            }
+            return *this;
+        }
     
         ~GetCompletedMigrationsResponse() noexcept = default;
     

@@ -12,6 +12,7 @@ namespace rkv
         using Self = rkv::GetCompletedMigrationsRequest;
     
         std::uint64_t source_;
+        std::uint64_t beginId_;
     public:
     
         GetCompletedMigrationsRequest() = default;
@@ -32,6 +33,7 @@ namespace rkv
             if(this != std::addressof(other))
             {
                 this->source_ = other.source_;
+                this->beginId_ = other.beginId_;
             }
             return *this;
         }
@@ -51,6 +53,16 @@ namespace rkv
         inline void SetSource(std::uint64_t source) noexcept
         {
             this->source_ = source;
+        }
+
+        inline std::uint64_t GetBeginId() const noexcept
+        {
+            return this->beginId_;
+        }
+
+        inline void SetBeginId(std::uint64_t id) noexcept
+        {
+            this->beginId_ = id;
         }
 
         std::size_t ComputeSize() const noexcept;

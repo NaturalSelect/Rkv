@@ -16,6 +16,9 @@
 #include <rkv/DeriveShardRequest.hpp>
 #include <rkv/DeriveShardResponse.hpp>
 #include <rkv/GetCompletedMigrationsRequest.hpp>
+#include <rkv/GetCompletedMigrationsResponse.hpp>
+#include <rkv/GetMigrationsRequest.hpp>
+#include <rkv/GetMigrationsResponse.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
@@ -266,7 +269,15 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
 
 void rkv::MasterServer::OnGetCompletedMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    
+    rkv::GetCompletedMigrationsRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::GetCompletedMigrationsResponse response;
+    {
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
+        this->completedMigrations_->GetCompletedMigrations(response.GetMigrationsInserter(),request.GetSource(),request.GetBeginId());
+        
+    }
 }
 
 void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
