@@ -8,6 +8,16 @@
 #include <rkv/Client.hpp>
 #include <rkv/GetShardByIdRequest.hpp>
 #include <rkv/GetShardByIdResponse.hpp>
+#include <rkv/GetCompletedMigrationsRequest.hpp>
+#include <rkv/GetCompletedMigrationsResponse.hpp>
+#include <rkv/GetMigrationsRequest.hpp>
+#include <rkv/GetMigrationsResponse.hpp>
+#include <rkv/GetShardByKeyRequest.hpp>
+#include <rkv/GetShardByKeyResponse.hpp>
+#include <rkv/DeriveShardRequest.hpp>
+#include <rkv/DeriveShardResponse.hpp>
+#include <rkv/CompleteMigrationRequest.hpp>
+#include <rkv/CompleteMigrationResponse.hpp>
 
 namespace rkv
 {
@@ -35,6 +45,11 @@ namespace rkv
                 *inserter++ = std::move(*begin);
             }
         }
+
+        static rkv::DeriveResult DeriveNewShard(sharpen::INetStreamChannel &channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
+
+        template<typename _InsertIterator>
+        static void GetMigrationsById(sharpen::INetStreamChannel &channel);
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -62,6 +77,8 @@ namespace rkv
             auto conn{this->GetConnection(this->leaderId_.Get())};
             Self::GetShardById(*conn,inserter,id);
         }
+
+        rkv::DeriveResult DeriveShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
     };
 }
 

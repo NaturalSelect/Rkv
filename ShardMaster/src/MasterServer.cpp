@@ -654,6 +654,10 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to get migrations\n",ip,ep.GetPort());
                 this->OnGetMigrations(*channel,buf);
                 break;
+            case rkv::MessageType::DeriveShardRequest:
+                std::printf("[Info]Channel %s:%hu want to derive shard\n",ip,ep.GetPort());
+                this->OnDerviveShard(*channel,buf);
+                break;
             default:
                 std::printf("[Info]Channel %s:%hu send a unknown request\n",ip,ep.GetPort());
                 break;

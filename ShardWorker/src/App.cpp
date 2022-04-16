@@ -86,7 +86,9 @@ static void Entry()
     id.SetAddrByString("127.0.0.1");
     id.SetPort(8083);
     std::vector<rkv::Shard> shards;
-    client.GetShard(std::back_inserter(shards),id);
+    sharpen::ByteBuffer beginKey{"123",3};
+    sharpen::ByteBuffer endKey{"456",3};
+    auto r = client.DeriveShard(0,beginKey,endKey);
     sharpen::CleanupNetSupport();
 }
 
