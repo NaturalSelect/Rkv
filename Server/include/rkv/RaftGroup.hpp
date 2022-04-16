@@ -47,10 +47,13 @@ namespace rkv
             opt.SetMaxElectionCycle(std::chrono::milliseconds{Self::maxElectionCycle_});
             return opt;
         }
+
+        std::function<void()> appendEntriesCb_;
     public:
     
         RaftGroup(sharpen::EventEngine &engine,const sharpen::IpEndPoint &id,rkv::RaftStorage storage,std::shared_ptr<rkv::KeyValueService> app)
             :RaftGroupBase(engine,id,std::move(storage),std::move(app),Self::MakeOption())
+            ,appendEntriesCb_()
         {}
     
         RaftGroup(Self &&other) noexcept = default;
@@ -75,6 +78,11 @@ namespace rkv
         }
 
         bool ProposeAppendEntries();
+
+        inline void SetAppendEntriesCallback(std::function<void()> cb) noexcept
+        {
+            this->appendEntriesCb_ = std::move(cb);
+        }
     };   
 }
 

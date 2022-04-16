@@ -74,7 +74,7 @@ namespace rkv
             }
         }
 
-        template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&&>(),std::declval<const rkv::CompletedMigration&>() = *std::declval<_Iterator>())>
+        template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&&>(),std::declval<rkv::CompletedMigration&>() = *std::declval<_Iterator>())>
         inline std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator beign,_Iterator end,std::uint64_t beginIndex,std::uint64_t term)
         {
             std::size_t size{sharpen::GetRangeSize(beign,end)};

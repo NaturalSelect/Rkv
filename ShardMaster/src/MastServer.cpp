@@ -19,6 +19,8 @@
 #include <rkv/GetCompletedMigrationsResponse.hpp>
 #include <rkv/GetMigrationsRequest.hpp>
 #include <rkv/GetMigrationsResponse.hpp>
+#include <rkv/CompleteMigrationRequest.hpp>
+#include <rkv/CompleteMigrationResponse.hpp>
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
     :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
@@ -61,6 +63,8 @@ rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterSe
         this->workers_.emplace_back(*begin);   
     }
     assert(!this->workers_.empty());
+    //set callback
+    this->group_->SetAppendEntriesCallback(std::bind(&Self::FlushStatusWithLock,this));
 }
 
 sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
@@ -85,6 +89,13 @@ bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) noexcept
         return false;
     }
     return true;
+}
+
+void rkv::MasterServer::FlushStatus()
+{
+    this->shards_->Flush();
+    this->migrations_->Flush();
+    this->completedMigrations_->Flush();
 }
 
 void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
@@ -123,7 +134,7 @@ void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
         {
             this->statusLock_.LockWrite();
             std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
-            this->shards_->Flush();
+            this->FlushStatus();
         }
     }
     else
@@ -210,70 +221,76 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
 
 void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
-    {
-        rkv::DeriveShardResponse response;
-        response.SetResult(rkv::DeriveResult::NotCommit);
-        char resBuf[sizeof(response)];
-        std::size_t size{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
-        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::DeriveShardReponse,size)};
-        channel.WriteObjectAsync(header);
-        channel.WriteAsync(resBuf,size);
-        return;
-    }
     rkv::DeriveShardRequest request;
     request.Unserialize().LoadFrom(buf);
     rkv::DeriveShardResponse response;
-    response.SetResult(rkv::DeriveResult::NotCommit);
+    response.SetResult(rkv::DeriveResult::Appiled);
     {
         this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> statusLock{this->statusLock_,std::adopt_lock};
-        const rkv::Shard *shard{this->shards_->FindShardPtr(request.BeginKey())};
-        if(shard)
+        //double check
+        if(!this->shards_->Contain(request.BeginKey()))
         {
-            statusLock.unlock();
-            response.SetResult(DeriveResult::Appiled);
-        }
-        else
-        {
-            if(this->migrations_->Contain(request.BeginKey()))
-            {
-                statusLock.unlock();
-                response.SetResult(DeriveResult::Appiled);
-            }
-            else
+            if(!this->migrations_->Contain(request.BeginKey()))
             {
                 this->statusLock_.UpgradeFromRead();
-                std::vector<sharpen::IpEndPoint> workers;
-                workers.reserve(Self::replicationFactor_);
-                std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
-                if(count == Self::replicationFactor_)
+                if(!this->shards_->Contain(request.BeginKey()) && !this->migrations_->Contain(request.BeginKey()))
                 {
-                    std::vector<rkv::Migration> migrations;
-                    migrations.reserve(count);
-                    this->GenrateMigrations(std::back_inserter(migrations),workers.begin(),workers.end(),this->migrations_->GetNextMirgationId(),this->migrations_->GetNextGroupId(),request.GetSource(),request.BeginKey(),request.EndKey());
-                    std::vector<rkv::RaftLog> logs;
-                    logs.reserve(count);
-                    std::uint64_t index{this->group_->Raft().GetLastIndex() + 1};
-                    std::uint64_t term{this->group_->Raft().GetCurrentTerm()};
-                    index = this->migrations_->GenrateEmplaceLogs(std::back_inserter(logs),migrations.begin(),migrations.end(),index,term);
-                    rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
-                    switch (result)
+                    std::uint64_t index{0};
+                    std::uint64_t term{0};
                     {
-                    case rkv::AppendEntriesResult::Appiled:
-                        response.SetResult(rkv::DeriveResult::Appiled);
-                        break;
-                    case rkv::AppendEntriesResult::Commited:
-                        response.SetResult(rkv::DeriveResult::Commited);
-                        break;
-                    case rkv::AppendEntriesResult::NotCommit:
-                        response.SetResult(rkv::DeriveResult::NotCommit);
-                        break;
+                        std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
+                        if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
+                        {
+                            std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
+                            index = this->group_->Raft().GetLastIndex();
+                            if(lastAppiled == index)
+                            {
+                                index += 1;
+                                term = this->group_->Raft().GetCurrentTerm();
+                            }
+                            else
+                            {
+                                index = 0;
+                            }
+                        }
+                        else
+                        {
+                            response.SetResult(rkv::DeriveResult::NotCommit);
+                        }
                     }
-                }
-                else
-                {
-                    response.SetResult(rkv::DeriveResult::LeakOfWorker);
+                    if(index)
+                    {
+                        std::vector<sharpen::IpEndPoint> workers;
+                        workers.reserve(Self::replicationFactor_);
+                        std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
+                        if(count == Self::replicationFactor_)
+                        {
+                            std::vector<rkv::Migration> migrations;
+                            migrations.reserve(count);
+                            this->GenrateMigrations(std::back_inserter(migrations),workers.begin(),workers.end(),this->migrations_->GetNextMirgationId(),this->migrations_->GetNextGroupId(),request.GetSource(),request.BeginKey(),request.EndKey());
+                            std::vector<rkv::RaftLog> logs;
+                            logs.reserve(count);
+                            index = this->migrations_->GenrateEmplaceLogs(std::back_inserter(logs),migrations.begin(),migrations.end(),index,term);
+                            rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                            switch (result)
+                            {
+                            case rkv::AppendEntriesResult::Appiled:
+                                response.SetResult(rkv::DeriveResult::Appiled);
+                                break;
+                            case rkv::AppendEntriesResult::Commited:
+                                response.SetResult(rkv::DeriveResult::Commited);
+                                break;
+                            case rkv::AppendEntriesResult::NotCommit:
+                                response.SetResult(rkv::DeriveResult::NotCommit);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            response.SetResult(rkv::DeriveResult::LeakOfWorker);
+                        }
+                    }
                 }
             }
         }
@@ -322,6 +339,106 @@ void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,cons
 void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
 
+    rkv::CompleteMigrationRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::CompleteMigrationResponse response;
+    response.SetResult(rkv::CompleteMigrationResult::Appiled);
+    {
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> statusLocck{this->statusLock_,std::adopt_lock};
+        std::vector<rkv::Migration> migrations;
+        this->migrations_->GetMigrations(std::back_inserter(migrations),request.GetGroupId());
+        //double check
+        if(!migrations.empty())
+        {
+            this->statusLock_.UpgradeFromRead();
+            migrations.clear();
+            this->migrations_->GetMigrations(std::back_inserter(migrations),request.GetGroupId());
+            if (!migrations.empty())
+            {
+                std::uint64_t index{0};
+                std::uint64_t term{0};
+                {
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
+                    if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
+                    {
+                        std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
+                        index = this->group_->Raft().GetLastIndex();
+                        if(lastAppiled == index)
+                        {
+                            index += 1;
+                            term = this->group_->Raft().GetCurrentTerm();
+                        }
+                        else
+                        {
+                            index = 0;
+                        }
+                    }
+                    else
+                    {
+                        response.SetResult(rkv::CompleteMigrationResult::NotCommit);
+                    }
+                }
+                if (index)
+                {
+                    std::vector<rkv::RaftLog> logs;
+                    logs.reserve(Self::reverseLogsCount_);
+                    for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
+                    {
+                        if(begin->Destination() == request.Id())
+                        {
+                            std::uint64_t id{begin->GetId()};
+                            index = this->migrations_->GenrateRemoveLogs(std::back_inserter(logs),&id,&id + 1,index,term);
+                            break;
+                        }
+                    }
+                    std::size_t migrationsCount{migrations.size()};
+                    //install shard
+                    if(migrationsCount == Self::replicationFactor_)
+                    {
+                        rkv::Shard shard;
+                        for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
+                        {
+                            shard.Workers().emplace_back(begin->GetId());
+                        }
+                        shard.SetId(this->shards_->GetNextIndex());
+                        shard.BeginKey() = std::move(migrations[0].BeginKey());
+                        index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
+                    }
+                    else if(migrationsCount == 1)
+                    {
+                        const rkv::Shard *shard{this->shards_->FindShardPtr(migrations[0].BeginKey())};
+                        assert(shard != nullptr);
+                        rkv::CompletedMigration completedMigration;
+                        completedMigration.SetId(this->completedMigrations_->GetNextId());
+                        completedMigration.SetDestination(shard->GetId());
+                        completedMigration.SetSource(migrations[0].GetSource());
+                        completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
+                        completedMigration.EndKey() = std::move(migrations[0].EndKey());
+                        index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
+                    }
+                    rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                    switch (result)
+                    {
+                    case rkv::AppendEntriesResult::Appiled:
+                        response.SetResult(rkv::CompleteMigrationResult::Appiled);
+                        break;
+                    case rkv::AppendEntriesResult::Commited:
+                        response.SetResult(rkv::CompleteMigrationResult::Commited);
+                        break;
+                    case rkv::AppendEntriesResult::NotCommit:
+                        response.SetResult(rkv::CompleteMigrationResult::NotCommit);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    char resBuf[sizeof(response)];
+    std::size_t size{response.Serialize().StoreTo(resBuf,sizeof(resBuf))};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::CompleteMigrationResponse,size)};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf,size);
 }
 
 void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)

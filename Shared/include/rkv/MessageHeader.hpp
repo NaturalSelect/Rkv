@@ -35,6 +35,7 @@ namespace rkv
         DeleteCompletedMigrationRequest,
         DeleteCompletedMigrationResponse,
         CompleteMigrationRequest, //worker to master
+        CompleteMigrationResponse,
         MigrationComletedRequest  //master to worker
     };
 

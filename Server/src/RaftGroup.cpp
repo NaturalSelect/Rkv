@@ -68,6 +68,10 @@ bool rkv::RaftGroup::ProposeAppendEntries()
     else
     {
         std::puts("[Info]Append entires to other members success");
+        if (this->appendEntriesCb_)
+        {
+            this->appendEntriesCb_();
+        }
     }
     finish.WaitAsync();
     this->raft_.ReactNewTerm(proposal.GetMaxTerm());

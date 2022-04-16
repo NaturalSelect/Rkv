@@ -59,7 +59,7 @@ namespace rkv
             return *this;
         }
 
-        template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::RaftLog&&>(),std::declval<const rkv::Shard&>() = *std::declval<_Iterator&>())>
+        template<typename _InsertIterator,typename _Iterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::RaftLog&>(),std::declval<rkv::Shard&>() = *std::declval<_Iterator&>())>
         std::uint64_t GenrateEmplaceLogs(_InsertIterator inserter,_Iterator begin,_Iterator end,std::uint64_t beginIndex,std::uint64_t term) const
         {
             std::uint64_t size{sharpen::GetRangeSize(begin,end)};
@@ -106,7 +106,12 @@ namespace rkv
             }
         }
 
-        const rkv::Shard *FindShardPtr(const sharpen::ByteBuffer &key) const noexcept;
+        const rkv::Shard *FindShardPtr(const sharpen::ByteBuffer &beginKey) const noexcept;
+
+        const bool Contain(const sharpen::ByteBuffer &beginKey) const noexcept
+        {
+            return this->FindShardPtr(beginKey);
+        }
 
         inline std::size_t GetSize() const noexcept
         {

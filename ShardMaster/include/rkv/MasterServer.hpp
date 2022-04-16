@@ -35,9 +35,20 @@ namespace rkv
 
         static constexpr std::size_t replicationFactor_{3};
 
+        static constexpr std::size_t reverseLogsCount_{16};
+
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
 
         bool TryConnect(const sharpen::IpEndPoint &endpoint) noexcept;
+
+        void FlushStatus();
+
+        inline void FlushStatusWithLock()
+        {
+            this->statusLock_.LockWrite();
+            std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
+            this->FlushStatus();
+        }
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const sharpen::IpEndPoint&>())>
         inline std::size_t SelectWorkers(_InsertIterator inserter,std::size_t count) const noexcept
