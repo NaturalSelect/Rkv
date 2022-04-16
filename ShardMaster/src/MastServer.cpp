@@ -276,13 +276,29 @@ void rkv::MasterServer::OnGetCompletedMigrations(sharpen::INetStreamChannel &cha
         this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
         this->completedMigrations_->GetCompletedMigrations(response.GetMigrationsInserter(),request.GetSource(),request.GetBeginId());
-        
     }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetCompletedMigrationsResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
 }
 
 void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-
+    rkv::GetMigrationsRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::GetMigrationsResponse response;
+    {
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
+        this->migrations_->GetMigrations(response.GetMigrationsInserter(),request.Destination());
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetMigrationsResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
 }
 
 void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)

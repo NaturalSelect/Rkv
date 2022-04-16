@@ -12,7 +12,7 @@ namespace rkv
     private:
         using Self = rkv::GetMigrationsRequest;
 
-        sharpen::IpEndPoint &destination_;
+        sharpen::IpEndPoint destination_;
     public:
     
         GetMigrationsRequest() = default;
