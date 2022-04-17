@@ -26,6 +26,10 @@ std::size_t rkv::GetShardByIdResponse::LoadFrom(const char *data,std::size_t siz
         this->shard_.Construct();
         offset += Helper::LoadFrom(this->shard_.Get(),data + offset,size - offset);
     }
+    else
+    {
+        this->shard_.Reset();
+    }
     return offset;
 }
 

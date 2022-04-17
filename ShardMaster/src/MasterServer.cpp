@@ -21,6 +21,8 @@
 #include <rkv/GetMigrationsResponse.hpp>
 #include <rkv/CompleteMigrationRequest.hpp>
 #include <rkv/CompleteMigrationResponse.hpp>
+#include <rkv/GetShardByIdRequest.hpp>
+#include <rkv/GetShardByIdResponse.hpp>
 
 sharpen::ByteBuffer rkv::MasterServer::zeroKey_;
 
@@ -601,7 +603,23 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
 
 void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    //TODO
+    rkv::GetShardByIdRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::GetShardByIdResponse response;
+    {
+        this->statusLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
+        const rkv::Shard *shard{this->shards_->GetShardPtr(request.GetId())};
+        if(shard)
+        {
+            response.Shard().Construct(*shard);
+        }
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
 }
 
 void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
