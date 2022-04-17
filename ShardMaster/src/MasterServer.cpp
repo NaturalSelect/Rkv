@@ -346,6 +346,18 @@ void rkv::MasterServer::OnGetShardByWorkerId(sharpen::INetStreamChannel &channel
     channel.WriteAsync(resBuf);
 }
 
+void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id)
+{
+    try
+    {
+        //TODO
+    }
+    catch(const std::exception &ignore)
+    {
+        static_cast<void>(ignore);
+    }
+}
+
 void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     rkv::DeriveShardRequest request;
@@ -464,7 +476,7 @@ void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,cons
     channel.WriteAsync(resBuf);
 }
 
-void rkv::MasterServer::MigrationCompleted(const sharpen::IpEndPoint &id) const noexcept
+void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id) const noexcept
 {
     try
     {
@@ -587,7 +599,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         statusLock.unlock();
                         for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
                         {
-                            this->MigrationCompleted(*begin);
+                            this->NotifyMigrationCompleted(*begin);
                         }
                     }
                 }
