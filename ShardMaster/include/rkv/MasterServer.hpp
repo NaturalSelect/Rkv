@@ -143,7 +143,7 @@ namespace rkv
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        void OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+        void OnGetShardByWorkerId(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnGetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 

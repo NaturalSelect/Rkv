@@ -11,8 +11,8 @@
 #include <rkv/VoteResponse.hpp>
 #include <rkv/GetShardByKeyRequest.hpp>
 #include <rkv/GetShardByKeyResponse.hpp>
-#include <rkv/GetShardByIdRequest.hpp>
-#include <rkv/GetShardByIdResponse.hpp>
+#include <rkv/GetShardByWorkerIdRequest.hpp>
+#include <rkv/GetShardByWorkerIdResponse.hpp>
 #include <rkv/DeriveShardRequest.hpp>
 #include <rkv/DeriveShardResponse.hpp>
 #include <rkv/GetCompletedMigrationsRequest.hpp>
@@ -267,11 +267,11 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
     channel.WriteAsync(resBuf);
 }
 
-void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::MasterServer::OnGetShardByWorkerId(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    rkv::GetShardByIdRequest request;
+    rkv::GetShardByWorkerIdRequest request;
     request.Unserialize().LoadFrom(buf);
-    rkv::GetShardByIdResponse response;
+    rkv::GetShardByWorkerIdResponse response;
     {
         this->statusLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->statusLock_,std::adopt_lock};
@@ -339,7 +339,7 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
     }
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByWorkerIdResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }
@@ -639,9 +639,9 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
                 this->OnGetShardByKey(*channel,buf);
                 break;
-            case rkv::MessageType::GetShardByIdRequest:
+            case rkv::MessageType::GetShardByWorkerIdRequest:
                 std::printf("[Info]Channel %s:%hu want to get a shard\n",ip,ep.GetPort());
-                this->OnGetShardById(*channel,buf);
+                this->OnGetShardByWorkerId(*channel,buf);
                 break;
             case rkv::MessageType::CompleteMigrationRequest:
                 std::printf("[Info]Channel %s:%hu want to complete a migration\n",ip,ep.GetPort());

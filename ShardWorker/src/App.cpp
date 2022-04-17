@@ -70,6 +70,13 @@ static void Entry()
     // sharpen::RegisterCtrlHandler(sharpen::CtrlType::Interrupt,std::bind(&StopServer,&server));
     // server.RunAsync();
     // std::puts("[Info]Server Stopped");
+    
+    //get migrations
+    //do migrations
+    //get shards
+    //get completed migrations
+    //cleanup data
+    //start server
     std::vector<sharpen::IpEndPoint> members;
     {
         sharpen::IpEndPoint ep;
@@ -86,10 +93,6 @@ static void Entry()
     sharpen::IpEndPoint id;
     id.SetAddrByString("127.0.0.1");
     id.SetPort(8085);
-    // client.GetShard(std::back_inserter(shards),id);
-    // sharpen::ByteBuffer beginKey{"1019",5};
-    // sharpen::ByteBuffer endKey{"10020",5};
-    // auto r = client.DeriveShard(0,beginKey,endKey);
     std::vector<rkv::Migration> migrations;
     client.GetMigrations(std::back_inserter(migrations),id);
     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)

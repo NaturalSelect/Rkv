@@ -6,8 +6,8 @@
 #include <rkv/Migration.hpp>
 #include <rkv/CompletedMigration.hpp>
 #include <rkv/Client.hpp>
-#include <rkv/GetShardByIdRequest.hpp>
-#include <rkv/GetShardByIdResponse.hpp>
+#include <rkv/GetShardByWorkerIdRequest.hpp>
+#include <rkv/GetShardByWorkerIdResponse.hpp>
 #include <rkv/GetCompletedMigrationsRequest.hpp>
 #include <rkv/GetCompletedMigrationsResponse.hpp>
 #include <rkv/GetMigrationsRequest.hpp>
@@ -29,16 +29,16 @@ namespace rkv
         static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key);
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&&>())>
-        static void GetShardById(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
+        static void GetShardByWorkerId(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
         {
-            rkv::GetShardByIdRequest request;
+            rkv::GetShardByWorkerIdRequest request;
             request.Id() = id;
             sharpen::ByteBuffer buf;
             request.Serialize().StoreTo(buf);
-            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdRequest,buf.GetSize())};
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByWorkerIdRequest,buf.GetSize())};
             Self::WriteMessage(channel,header,buf);
-            Self::ReadMessage(channel,rkv::MessageType::GetShardByIdResponse,buf);
-            rkv::GetShardByIdResponse response;
+            Self::ReadMessage(channel,rkv::MessageType::GetShardByWorkerIdResponse,buf);
+            rkv::GetShardByWorkerIdResponse response;
             response.Unserialize().LoadFrom(buf);
             for (auto begin = response.ShardsBegin(),end = response.ShardsEnd(); begin != end; ++begin)
             {
@@ -113,7 +113,7 @@ namespace rkv
             try
             {
                 auto conn{this->GetConnection(this->leaderId_.Get())};
-                Self::GetShardById(*conn,inserter,id);
+                Self::GetShardByWorkerId(*conn,inserter,id);
             }
             catch(const std::exception&)
             {

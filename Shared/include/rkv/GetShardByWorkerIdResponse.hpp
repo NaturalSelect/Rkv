@@ -10,10 +10,10 @@
 
 namespace rkv
 {
-    class GetShardByIdResponse:public sharpen::BinarySerializable<rkv::GetShardByIdResponse>
+    class GetShardByWorkerIdResponse:public sharpen::BinarySerializable<rkv::GetShardByWorkerIdResponse>
     {
     private:
-        using Self = rkv::GetShardByIdResponse;
+        using Self = rkv::GetShardByWorkerIdResponse;
         using Shards = std::vector<rkv::Shard>;
         using Iterator = typename Shards::iterator;
         using ConstIterator = typename Shards::const_iterator;
@@ -21,11 +21,11 @@ namespace rkv
         Shards shards_;
     public:
     
-        GetShardByIdResponse() = default;
+        GetShardByWorkerIdResponse() = default;
     
-        GetShardByIdResponse(const Self &other) = default;
+        GetShardByWorkerIdResponse(const Self &other) = default;
     
-        GetShardByIdResponse(Self &&other) noexcept = default;
+        GetShardByWorkerIdResponse(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -43,7 +43,7 @@ namespace rkv
             return *this;
         }
     
-        ~GetShardByIdResponse() noexcept = default;
+        ~GetShardByWorkerIdResponse() noexcept = default;
     
         inline const Self &Const() const noexcept
         {

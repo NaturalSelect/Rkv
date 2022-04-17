@@ -7,19 +7,19 @@
 
 namespace rkv
 {
-    class GetShardByIdRequest:public sharpen::BinarySerializable<rkv::GetShardByIdRequest>
+    class GetShardByWorkerIdRequest:public sharpen::BinarySerializable<rkv::GetShardByWorkerIdRequest>
     {
     private:
-        using Self = rkv::GetShardByIdRequest;
+        using Self = rkv::GetShardByWorkerIdRequest;
     
         sharpen::IpEndPoint id_;
     public:
     
-        GetShardByIdRequest() = default;
+        GetShardByWorkerIdRequest() = default;
     
-        GetShardByIdRequest(const Self &other) = default;
+        GetShardByWorkerIdRequest(const Self &other) = default;
     
-        GetShardByIdRequest(Self &&other) noexcept = default;
+        GetShardByWorkerIdRequest(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -37,7 +37,7 @@ namespace rkv
             return *this;
         }
     
-        ~GetShardByIdRequest() noexcept = default;
+        ~GetShardByWorkerIdRequest() noexcept = default;
     
         inline const Self &Const() const noexcept
         {
