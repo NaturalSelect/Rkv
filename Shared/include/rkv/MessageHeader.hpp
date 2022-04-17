@@ -37,7 +37,9 @@ namespace rkv
         MigrationComletedRequest,  //master to worker
         MigrationCompletedResponse,
         GetShardByIdRequest,
-        GetShardByIdResponse
+        GetShardByIdResponse,
+        MigrateRequest,
+        MigrateResponse
     };
 
     struct MessageHeader

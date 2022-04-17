@@ -31,6 +31,12 @@ namespace rkv
         using Self = rkv::WorkerServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
+        static std::string FormatStorageName(std::uint64_t id);
+        
+        void ExecuteMigration(const rkv::Migration &migration);
+
+        void CleaupCompletedMigration(const rkv::CompletedMigration &migration);
+
         void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;
 
         void OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const;
@@ -47,24 +53,32 @@ namespace rkv
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
+        sharpen::IpEndPoint selfId_;
         std::shared_ptr<rkv::KeyValueService> app_;
-        rkv::MasterClient client_;
-        std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> group_;
+        std::unique_ptr<rkv::MasterClient> client_;
+        std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> groups_;
+        sharpen::FileChannelPtr counterFile_;
     public:
-        WorkerServer(sharpen::EventEngine &engine,rkv::MasterClient client,const rkv::WorkerServerOption &option);
+        WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option);
     
         ~WorkerServer() noexcept = default;
 
         inline void RunAsync()
         {
-            //this->group_->Start();
+            for(auto begin = this->groups_.begin(),end = this->groups_.end(); begin != end; ++begin)
+            {
+                begin->second->Start();   
+            }
             sharpen::TcpServer::RunAsync();
         }
 
         void Stop()
         {
             sharpen::TcpServer::Stop();
-            //this->group_->Stop();
+            for(auto begin = this->groups_.begin(),end = this->groups_.end(); begin != end; ++begin)
+            {
+                begin->second->Stop();   
+            }
         }
     };
 }

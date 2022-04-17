@@ -3,6 +3,7 @@
 #define _RKV_RAFTSERVEROPTION_HPP
 
 #include <sharpen/IpEndPoint.hpp>
+#include <sharpen/IteratorOps.hpp>
 
 namespace rkv
 {
@@ -10,20 +11,31 @@ namespace rkv
     {
     private:
         using Self = rkv::WorkerServerOption;
-        using MemberIds = std::vector<sharpen::IpEndPoint>;
+        using MasterEndpoints = std::vector<sharpen::IpEndPoint>;
     public:
-        using Iterator = typename MemberIds::iterator;
-        using ConstIterator = typename MemberIds::const_iterator;
+        using Iterator = typename MasterEndpoints::iterator;
+        using ConstIterator = typename MasterEndpoints::const_iterator;
     private:
     
         sharpen::IpEndPoint bindEndpoint_;
         sharpen::IpEndPoint selfId_;
+        MasterEndpoints masterEndpoints_;
     public:
     
-        WorkerServerOption(const sharpen::IpEndPoint &bindEndpoint,const sharpen::IpEndPoint &selfId)
+        template<typename _Iterator,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>())>
+        WorkerServerOption(const sharpen::IpEndPoint &bindEndpoint,const sharpen::IpEndPoint &selfId,_Iterator masterBegin,_Iterator masterEnd)
             :bindEndpoint_(bindEndpoint)
             ,selfId_(selfId)
-        {}
+            ,masterEndpoints_()
+        {
+            std::size_t size{sharpen::GetRangeSize(masterBegin,masterEnd)};
+            assert(size != 0);
+            while (masterBegin != masterEnd)
+            {
+                this->masterEndpoints_.emplace_back(*masterBegin);
+                ++masterBegin;
+            }
+        }
     
         WorkerServerOption(const Self &other) = default;
     
@@ -66,6 +78,36 @@ namespace rkv
         inline const sharpen::IpEndPoint &BindEndpoint() const noexcept
         {
             return this->bindEndpoint_;
+        }
+
+        inline Iterator MasterBegin() noexcept
+        {
+            return this->masterEndpoints_.begin();
+        }
+        
+        inline ConstIterator MasterBegin() const noexcept
+        {
+            return this->masterEndpoints_.begin();
+        }
+        
+        inline Iterator MasterEnd() noexcept
+        {
+            return this->masterEndpoints_.end();
+        }
+        
+        inline ConstIterator MasterEnd() const noexcept
+        {
+            return this->masterEndpoints_.end();
+        }
+
+        inline std::size_t GetMasterSize() const noexcept
+        {
+            return this->masterEndpoints_.size();
+        }
+
+        inline bool MasterEmpty() const noexcept
+        {
+            return this->masterEndpoints_.empty();
         }
     };
 }
