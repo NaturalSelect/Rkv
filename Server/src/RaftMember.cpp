@@ -39,6 +39,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
     {
         this->ConnectToEndPoint();
         rkv::AppendEntriesRequest request;
+        request.Group() = proposal->Group();
         request.SetCommitIndex(proposal->GetCommitIndex());
         request.SetLeaderTerm(proposal->GetTerm());
         request.SetPrevLogIndex(this->currentIndex_);
@@ -124,6 +125,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future
     {
         this->ConnectToEndPoint();
         rkv::VoteRequest reqeust;
+        reqeust.Group() = proposal->Group();
         reqeust.Id() = proposal->Id();
         reqeust.SetTerm(proposal->GetTerm());
         reqeust.SetLastIndex(proposal->GetLastIndex());

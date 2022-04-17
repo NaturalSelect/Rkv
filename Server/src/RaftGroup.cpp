@@ -9,6 +9,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
         return sharpen::TimerLoop::LoopStatus::Terminate;
     }
     rkv::VoteProposal proposal;
+    proposal.Group() = this->group_;
     {
         std::unique_lock<sharpen::AsyncMutex> lock{*this->raftLock_};
         this->raft_.RaiseElection();
@@ -53,6 +54,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
 bool rkv::RaftGroup::ProposeAppendEntries()
 {
     rkv::LogProposal proposal{this->raft_.GetPersistenceStorage()};
+    proposal.Group() = this->group_;
     proposal.SetCommitIndex(this->raft_.GetCommitIndex());
     proposal.SetTerm(this->raft_.GetCurrentTerm());
     proposal.Id() = this->raft_.GetSelfId();

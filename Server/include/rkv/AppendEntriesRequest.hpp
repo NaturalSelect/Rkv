@@ -20,6 +20,7 @@ namespace rkv
         sharpen::Uint64 prevLogIndex_;
         sharpen::Uint64 prevLogTerm_;
         sharpen::Uint64 commitIndex_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
     
         AppendEntriesRequest() = default;
@@ -45,6 +46,7 @@ namespace rkv
                 this->prevLogIndex_ = other.prevLogIndex_;
                 this->prevLogTerm_ = other.prevLogTerm_;
                 this->commitIndex_ = other.commitIndex_;
+                this->group_ = std::move(other.group_);
             }
             return *this;
         }
@@ -109,6 +111,16 @@ namespace rkv
         inline void SetCommitIndex(std::uint64_t index) noexcept
         {
             this->commitIndex_ = index;
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
 
         std::size_t ComputeSize() const noexcept;

@@ -10,6 +10,13 @@ std::size_t rkv::VoteRequest::ComputeSize() const noexcept
     size += Helper::ComputeSize(builder);
     builder.Set(this->lastTerm_);
     size += Helper::ComputeSize(builder);
+    bool exist{this->group_.Exist()};
+    size += Helper::ComputeSize(exist);
+    if(exist)
+    {
+        builder.Set(this->group_.Get());
+        size += Helper::ComputeSize(builder);
+    }
     return size;
 }
 
@@ -40,6 +47,21 @@ std::size_t rkv::VoteRequest::LoadFrom(const char *data,std::size_t size)
     }
     offset += Helper::LoadFrom(builder,data + offset,size - offset);
     this->lastTerm_ = builder.Get();
+    if(size <= offset)
+    {
+        throw sharpen::DataCorruptionException("vote request corruption");
+    }
+    bool exist;
+    offset += Helper::LoadFrom(exist,data + offset,size - offset);
+    if(exist)
+    {
+        offset += Helper::LoadFrom(builder,data + offset,size - offset);
+        this->group_.Construct(builder.Get());
+    }
+    else
+    {
+        this->group_.Reset();
+    }
     return offset;
 }
 
@@ -53,5 +75,12 @@ std::size_t rkv::VoteRequest::UnsafeStoreTo(char *data) const noexcept
     offset += Helper::UnsafeStoreTo(builder,data + offset);
     builder.Set(this->lastTerm_);
     offset += Helper::UnsafeStoreTo(builder,data + offset);
+    bool exist{this->group_.Exist()};
+    offset += Helper::UnsafeStoreTo(exist,data + offset);
+    if (exist)
+    {
+        builder.Set(this->group_.Get());
+        offset += Helper::UnsafeStoreTo(builder,data + offset);   
+    }
     return offset;
 }

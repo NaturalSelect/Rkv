@@ -49,11 +49,13 @@ namespace rkv
         }
 
         std::function<void()> appendEntriesCb_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
     
         RaftGroup(sharpen::EventEngine &engine,const sharpen::IpEndPoint &id,rkv::RaftStorage storage,std::shared_ptr<rkv::KeyValueService> app)
             :RaftGroupBase(engine,id,std::move(storage),std::move(app),Self::MakeOption())
             ,appendEntriesCb_()
+            ,group_(sharpen::EmptyOpt)
         {}
     
         RaftGroup(Self &&other) noexcept = default;
@@ -63,6 +65,8 @@ namespace rkv
             if(this != std::addressof(other))
             {
                 RaftGroupBase::operator=(std::move(other));
+                this->appendEntriesCb_ = std::move(other.appendEntriesCb_);
+                this->group_ = std::move(other.group_);
             }
             return *this;
         }
@@ -82,6 +86,16 @@ namespace rkv
         inline void SetAppendEntriesCallback(std::function<void()> cb) noexcept
         {
             this->appendEntriesCb_ = std::move(cb);
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
     };   
 }

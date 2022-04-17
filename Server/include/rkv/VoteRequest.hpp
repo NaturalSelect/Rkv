@@ -18,6 +18,7 @@ namespace rkv
         std::uint64_t term_;
         std::uint64_t lastIndex_;
         std::uint64_t lastTerm_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
     
         VoteRequest() = default;
@@ -41,6 +42,7 @@ namespace rkv
                 this->term_ = other.term_;
                 this->lastIndex_ = other.lastIndex_;
                 this->lastTerm_ = other.lastTerm_;
+                this->group_ = std::move(other.group_);
             }
             return *this;
         }
@@ -85,6 +87,16 @@ namespace rkv
         inline void SetLastTerm(std::uint64_t term) noexcept
         {
             this->lastTerm_ = term;
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
 
         std::size_t ComputeSize() const noexcept;

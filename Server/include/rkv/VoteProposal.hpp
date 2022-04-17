@@ -19,6 +19,7 @@ namespace rkv
         std::uint64_t lastLogTerm_;
         std::function<void()> callback_;
         std::uint64_t maxTerm_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
     
         VoteProposal() = default;
@@ -44,6 +45,7 @@ namespace rkv
                 this->lastLogTerm_ = other.lastLogTerm_;
                 this->callback_ = std::move(other.callback_);
                 this->maxTerm_ = other.maxTerm_;
+                this->group_ = std::move(other.group_);
             }
             return *this;
         }
@@ -112,6 +114,16 @@ namespace rkv
         inline std::uint64_t GetMaxTerm() const noexcept
         {
             return this->maxTerm_;
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
     };   
 }

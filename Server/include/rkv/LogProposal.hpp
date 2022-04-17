@@ -18,6 +18,7 @@ namespace rkv
         std::uint64_t term_;
         std::uint64_t commintIndex_;
         std::uint64_t maxTerm_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
 
         explicit LogProposal(const rkv::RaftStorage &storage)
@@ -26,6 +27,7 @@ namespace rkv
             ,term_(0)
             ,commintIndex_(0)
             ,maxTerm_(0)
+            ,group_(sharpen::EmptyOpt)
         {}
     
         LogProposal(const Self &other) = default;
@@ -48,6 +50,7 @@ namespace rkv
                 this->term_ = other.term_;
                 this->commintIndex_ = other.commintIndex_;
                 this->maxTerm_ = other.maxTerm_;
+                this->group_ = std::move(other.group_);
             }
             return *this;
         }
@@ -101,6 +104,16 @@ namespace rkv
         inline std::uint64_t GetMaxTerm() const noexcept
         {
             return this->maxTerm_;
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
     };
 }
