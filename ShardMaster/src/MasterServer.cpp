@@ -549,15 +549,17 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     else if(migrationsCount == 1)
                     {
                         const rkv::Shard *shard{this->shards_->FindShardPtr(migrations[0].BeginKey())};
-                        assert(shard != nullptr);
-                        rkv::CompletedMigration completedMigration;
-                        completedMigration.SetId(this->completedMigrations_->GetNextId());
-                        completedMigration.SetDestination(shard->GetId());
-                        completedMigration.SetSource(migrations[0].GetSource());
-                        completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
-                        completedMigration.EndKey() = std::move(migrations[0].EndKey());
-                        notifyShard = this->shards_->GetShardPtr(completedMigration.BeginKey());
-                        index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index + 1,term);
+                        if(shard)
+                        {
+                            rkv::CompletedMigration completedMigration;
+                            completedMigration.SetId(this->completedMigrations_->GetNextId());
+                            completedMigration.SetDestination(shard->GetId());
+                            completedMigration.SetSource(migrations[0].GetSource());
+                            completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
+                            completedMigration.EndKey() = std::move(migrations[0].EndKey());
+                            notifyShard = this->shards_->GetShardPtr(completedMigration.BeginKey());
+                            index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index + 1,term);
+                        }
                     }
                     rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                     switch (result)
