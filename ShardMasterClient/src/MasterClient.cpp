@@ -17,8 +17,31 @@ sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardByKey(sharpen::INetStre
 sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShard(const sharpen::ByteBuffer &key)
 {
     this->FillLeaderId();
-    auto conn{this->GetConnection(this->leaderId_.Get())};
-    return Self::GetShardByKey(*conn,key);
+    try
+    {
+        auto conn{this->GetConnection(this->leaderId_.Get())};
+        return Self::GetShardByKey(*conn,key);
+    }
+    catch(const std::exception&)
+    {
+        this->leaderId_.Reset();
+        throw;   
+    }
+}
+
+sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShard(std::uint64_t id)
+{
+    this->FillLeaderId();
+    try
+    {
+        auto conn{this->GetConnection(this->leaderId_.Get())};
+        return Self::GetShardById(*conn,id);
+    }
+    catch(const std::exception&)
+    {
+        this->leaderId_.Reset();
+        throw;   
+    }
 }
 
 rkv::DeriveResult rkv::MasterClient::DeriveNewShard(sharpen::INetStreamChannel &channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey)

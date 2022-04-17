@@ -16,6 +16,7 @@
 
 static void Entry()
 {
+    
     sharpen::StartupNetSupport();
     // std::puts("start server");
     // //cretae config directory
@@ -77,30 +78,6 @@ static void Entry()
     //get completed migrations
     //cleanup data
     //start server
-    std::vector<sharpen::IpEndPoint> members;
-    {
-        sharpen::IpEndPoint ep;
-        ep.SetAddrByString("127.0.0.1");
-        for (size_t i = 0; i != 3; ++i)
-        {
-            ep.SetPort(8080 + i);   
-            members.emplace_back(ep);
-        }
-    }
-    sharpen::ByteBuffer key{};
-    rkv::MasterClient client{sharpen::EventEngine::GetEngine(),members.begin(),members.end(),std::chrono::seconds{1},10};
-    std::vector<rkv::Shard> shards;
-    sharpen::IpEndPoint id;
-    id.SetAddrByString("127.0.0.1");
-    id.SetPort(8085);
-    std::vector<rkv::Migration> migrations;
-    client.GetMigrations(std::back_inserter(migrations),id);
-    for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
-    {
-        client.CompleteMigration(begin->GetGroupId(),id);
-    }
-    std::vector<rkv::CompletedMigration> completedMigrations;
-    client.GetCompletedMigrations(std::back_inserter(completedMigrations),0,0);
     sharpen::CleanupNetSupport();
 }
 
