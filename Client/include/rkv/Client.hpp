@@ -9,6 +9,7 @@
 #include <sharpen/IpEndPoint.hpp>
 #include <sharpen/IteratorOps.hpp>
 
+#include <rkv/LeaderRedirectRequest.hpp>
 #include <rkv/LeaderRedirectResponse.hpp>
 #include <rkv/MessageHeader.hpp>
 
@@ -25,7 +26,7 @@ namespace rkv
 
         static void ReadMessage(sharpen::INetStreamChannel &channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
 
-        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::INetStreamChannel &channel);
+        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::INetStreamChannel &channel,sharpen::Optional<std::uint64_t> group);
 
         sharpen::IpEndPoint GetRandomId() const noexcept;
 
@@ -47,6 +48,7 @@ namespace rkv
         sharpen::TimerPtr timer_;
         std::chrono::milliseconds restoreTimeout_;
         std::size_t maxTimeoutCount_;
+        sharpen::Optional<std::uint64_t> group_;
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -59,6 +61,7 @@ namespace rkv
             ,timer_(sharpen::MakeTimer(*this->engine_))
             ,restoreTimeout_(restoreTimeout)
             ,maxTimeoutCount_(maxTimeoutCount)
+            ,group_(sharpen::EmptyOpt)
         {
             assert(begin != end);
             while (begin != end)
@@ -91,6 +94,16 @@ namespace rkv
         inline const Self &Const() const noexcept
         {
             return *this;
+        }
+
+        inline sharpen::Optional<std::uint64_t> &Group() noexcept
+        {
+            return this->group_;
+        }
+
+        inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
+        {
+            return this->group_;
         }
     };
 }

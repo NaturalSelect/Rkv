@@ -10,6 +10,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     ,clientLock_()
     ,client_(nullptr)
     ,groups_()
+    ,keyCounter_()
     ,counterFile_(nullptr)
 {
     //make directories
@@ -27,9 +28,23 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
     {
-        //TODO:if dst == src
-        //skip
-        this->ExecuteMigrationAndNotify(*begin);
+        sharpen::Optional<rkv::Shard> shard{this->client_->GetShard(begin->GetSource())};
+        if(shard.Exist())
+        {
+            bool skip{false};
+            for(auto workerBegin = shard.Get().Workers().begin(),workerEnd = shard.Get().Workers().end(); workerBegin != workerEnd; ++workerBegin)
+            {
+                if(*workerBegin == this->selfId_)
+                {
+                    skip = true;
+                    break;
+                }   
+            }
+            if(!skip)
+            {
+                this->ExecuteMigrationAndNotify(*begin);
+            }
+        }
     }
     //get shards
     std::vector<rkv::Shard> shards;
@@ -106,7 +121,46 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
 
 void rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
 {
-    //TODO
+    sharpen::Optional<rkv::Shard> shard;
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
+        shard = this->client_->GetShard(migration.GetSource());
+    }
+    if(shard.Exist())
+    {
+        if(!shard.Get().Workers().empty())
+        {
+            std::unordered_set<sharpen::IpEndPoint> set;
+            std::minstd_rand random{std::random_device{}()};
+            std::uniform_int_distribution<std::size_t> distribution{1,shard.Get().Workers().size()};
+            sharpen::NetStreamChannelPtr channel;
+            while (set.size() != shard.Get().Workers().size())
+            {
+                std::size_t index{distribution(random) - 1};
+                sharpen::IpEndPoint id{shard.Get().Workers()[index]};
+                if(!set.count(id))
+                {
+                    sharpen::NetStreamChannelPtr tmp{sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip)};
+                    sharpen::IpEndPoint ep{0,0};
+                    tmp->Bind(ep);
+                    tmp->Register(*this->engine_);
+                    try
+                    {
+                        tmp->ConnectAsync(id);
+                        channel = std::move(tmp);
+                    }
+                    catch(const std::exception&)
+                    {
+                        set.emplace(id);
+                    }
+                }
+                if (channel)
+                {
+                    //TODO migrate data
+                }
+            }
+        }
+    }
 }
 
 void rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migration)
@@ -117,5 +171,48 @@ void rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
         result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
+    }
+}
+
+void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
+{
+    try
+    {
+        sharpen::IpEndPoint ep;
+        channel->GetRemoteEndPoint(ep);
+        char ip[21] = {};
+        ep.GetAddrString(ip,sizeof(ip));
+        std::printf("[Info]A new channel %s:%hu connect to host\n",ip,ep.GetPort());
+        while (1)
+        {
+            rkv::MessageHeader header;
+            std::size_t sz{channel->ReadObjectAsync(header)};
+            if(sz != sizeof(header))
+            {
+                break;
+            }
+            std::printf("[Info]Receive a new message from %s:%hu type is %llu size is %llu\n",ip,ep.GetPort(),header.type_,header.size_);
+            rkv::MessageType type{rkv::GetMessageType(header)};
+            sharpen::ByteBuffer buf{sharpen::IntCast<std::size_t>(header.size_)};
+            sz = channel->ReadFixedAsync(buf);
+            if(sz != buf.GetSize())
+            {
+                break;
+            }
+            switch (type)
+            {
+            case rkv::MessageType::LeaderRedirectRequest:
+                
+                break;
+            
+            default:
+                break;
+            }
+        }
+        std::printf("[Info]A channel %s:%hu disconnect with host\n",ip,ep.GetPort());
+    }
+    catch(const std::exception& e)
+    {
+        std::fprintf(stderr,"[Error]An error has occurred %s\n",e.what());
     }
 }

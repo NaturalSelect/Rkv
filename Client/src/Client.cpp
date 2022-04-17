@@ -88,11 +88,14 @@ void rkv::Client::EraseConnection(const sharpen::IpEndPoint &id)
     ite->second.reset();
 }
 
-sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::INetStreamChannel &channel)
+sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::INetStreamChannel &channel,sharpen::Optional<std::uint64_t> group)
 {
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,0)};
-    Self::WriteMessage(channel,header);
+    rkv::LeaderRedirectRequest request;
+    request.Group() = group;
     sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,buf.GetSize())};
+    Self::WriteMessage(channel,header,buf);
     Self::ReadMessage(channel,rkv::MessageType::LeaderRedirectResponse,buf);
     rkv::LeaderRedirectResponse response;
     response.Unserialize().LoadFrom(buf);
@@ -123,7 +126,7 @@ void rkv::Client::FillLeaderId()
     {
         try
         {
-            auto tmp{Self::GetLeaderId(*conn)};
+            auto tmp{Self::GetLeaderId(*conn,this->group_)};
             if(tmp.Exist())
             {
                 this->leaderId_.Construct(tmp.Get());

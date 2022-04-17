@@ -653,12 +653,6 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             }
             std::printf("[Info]Receive a new message from %s:%hu type is %llu size is %llu\n",ip,ep.GetPort(),header.type_,header.size_);
             rkv::MessageType type{rkv::GetMessageType(header)};
-            if(type == rkv::MessageType::LeaderRedirectRequest)
-            {
-                std::printf("[Info]Channel %s:%hu ask who is leader\n",ip,ep.GetPort());
-                this->OnLeaderRedirect(*channel);
-                continue;
-            }
             sharpen::ByteBuffer buf{sharpen::IntCast<std::size_t>(header.size_)};
             sz = channel->ReadFixedAsync(buf);
             if(sz != buf.GetSize())
@@ -667,6 +661,10 @@ void rkv::MasterServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             }
             switch (type)
             {
+            case rkv::MessageType::LeaderRedirectRequest:
+                std::printf("[Info]Channel %s:%hu ask who is leader\n",ip,ep.GetPort());
+                this->OnLeaderRedirect(*channel);
+                break;
             case rkv::MessageType::AppendEntriesRequest:
                 std::printf("[Info]Channel %s:%hu want to append entires\n",ip,ep.GetPort());
                 this->OnAppendEntries(*channel,buf);
