@@ -19,14 +19,16 @@ namespace rkv
         using ConstIterator = typename MemberIds::const_iterator;
     private:
     
+        sharpen::IpEndPoint bindEndpoint_;
         sharpen::IpEndPoint selfId_;
         MemberIds memberIds_;
         MemberIds workerIds_;
     public:
     
         template<typename _MemberIterator,typename _WorkerIterator,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_MemberIterator&>()++,std::declval<sharpen::IpEndPoint&>() = *std::declval<_WorkerIterator&>()++)>
-        MasterServerOption(const sharpen::IpEndPoint &selfId,_MemberIterator memberBegin,_MemberIterator memberEnd,_WorkerIterator workerBegin,_WorkerIterator workerEnd)
-            :selfId_(selfId)
+        MasterServerOption(const sharpen::IpEndPoint &bindEndpoint,const sharpen::IpEndPoint &selfId,_MemberIterator memberBegin,_MemberIterator memberEnd,_WorkerIterator workerBegin,_WorkerIterator workerEnd)
+            :bindEndpoint_(bindEndpoint)
+            ,selfId_(selfId)
             ,memberIds_()
             ,workerIds_()
         {
@@ -141,6 +143,16 @@ namespace rkv
         inline const sharpen::IpEndPoint &SelfId() const noexcept
         {
             return this->selfId_;
+        }
+
+        inline sharpen::IpEndPoint &BindEndpoint() noexcept
+        {
+            return this->bindEndpoint_;
+        }
+
+        inline const sharpen::IpEndPoint &BindEndpoint() const noexcept
+        {
+            return this->bindEndpoint_;
         }
     };
 }

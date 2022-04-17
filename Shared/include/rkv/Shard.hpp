@@ -38,7 +38,8 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
-                //this->key_ = std::move(other.key_);
+                this->id_ = other.id_;
+                this->beginKey_ = std::move(other.beginKey_);
                 this->workers_ = std::move(other.workers_);
             }
             return *this;

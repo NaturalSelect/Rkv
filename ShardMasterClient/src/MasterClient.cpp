@@ -50,6 +50,7 @@ rkv::DeriveResult rkv::MasterClient::DeriveShard(std::uint64_t source,const shar
             if (result == rkv::DeriveResult::NotCommit)
             {
                 this->leaderId_.Reset();
+                this->timer_->Await(this->restoreTimeout_);
             }
         }
         catch(const std::exception &)
@@ -60,6 +61,50 @@ rkv::DeriveResult rkv::MasterClient::DeriveShard(std::uint64_t source,const shar
                 this->leaderId_.Reset();
             }
             break;   
+        }
+    }
+    return result;
+}
+
+rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(sharpen::INetStreamChannel &channel,std::uint64_t groupId,const sharpen::IpEndPoint &id)
+{
+    rkv::CompleteMigrationRequest request;
+    request.SetGroupId(groupId);
+    request.Id() = id;
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::CompleteMigrationRequest,buf.GetSize())};
+    Self::WriteMessage(channel,header,buf);
+    rkv::CompleteMigrationResponse response;
+    Self::ReadMessage(channel,rkv::MessageType::CompleteMigrationResponse,buf);
+    response.Unserialize().LoadFrom(buf);
+    return response.GetResult();
+}
+
+rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(std::uint64_t groupId,const sharpen::IpEndPoint &id)
+{
+    rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
+    while (result == rkv::CompleteMigrationResult::NotCommit)
+    {
+        try
+        {
+            this->FillLeaderId();
+            auto conn{this->GetConnection(this->leaderId_.Get())};
+            result = Self::CompleteMigration(*conn,groupId,id);
+            if(result == rkv::CompleteMigrationResult::NotCommit)
+            {
+                this->leaderId_.Reset();
+                this->timer_->Await(this->restoreTimeout_);
+            }   
+        }
+        catch(const std::exception&)
+        {
+            if(this->leaderId_.Exist())
+            {
+                this->EraseConnection(this->leaderId_.Get());
+                this->leaderId_.Reset();
+            }
+            break;
         }
     }
     return result;

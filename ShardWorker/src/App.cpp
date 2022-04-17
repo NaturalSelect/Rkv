@@ -82,15 +82,22 @@ static void Entry()
     }
     sharpen::ByteBuffer key{};
     rkv::MasterClient client{sharpen::EventEngine::GetEngine(),members.begin(),members.end(),std::chrono::seconds{1},10};
+    std::vector<rkv::Shard> shards;
     sharpen::IpEndPoint id;
     id.SetAddrByString("127.0.0.1");
-    id.SetPort(8083);
-    std::vector<rkv::Shard> shards;
-    sharpen::ByteBuffer beginKey{"1005",4};
-    sharpen::ByteBuffer endKey{"1006",4};
-    auto r = client.DeriveShard(0,beginKey,endKey);
+    id.SetPort(8085);
+    // client.GetShard(std::back_inserter(shards),id);
+    // sharpen::ByteBuffer beginKey{"1019",5};
+    // sharpen::ByteBuffer endKey{"10020",5};
+    // auto r = client.DeriveShard(0,beginKey,endKey);
     std::vector<rkv::Migration> migrations;
     client.GetMigrations(std::back_inserter(migrations),id);
+    for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
+    {
+        client.CompleteMigration(begin->GetGroupId(),id);
+    }
+    std::vector<rkv::CompletedMigration> completedMigrations;
+    client.GetCompletedMigrations(std::back_inserter(completedMigrations),0,0);
     sharpen::CleanupNetSupport();
 }
 

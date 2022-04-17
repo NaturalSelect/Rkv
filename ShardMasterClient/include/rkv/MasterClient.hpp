@@ -65,6 +65,27 @@ namespace rkv
                 *inserter++ = *begin;
             }
         }
+
+        static rkv::CompleteMigrationResult CompleteMigration(sharpen::INetStreamChannel &channel,std::uint64_t groupId,const sharpen::IpEndPoint &id);
+
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::CompletedMigration&>())>
+        static void GetCompletedMigrations(sharpen::INetStreamChannel &channel,_InsertIterator inserter,std::uint64_t beginId,std::uint64_t source)
+        {
+            rkv::GetCompletedMigrationsRequest request;
+            request.SetSource(source);
+            request.SetBeginId(beginId);
+            sharpen::ByteBuffer buf;
+            request.Serialize().StoreTo(buf);
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetCompletedMigrationsRequest,buf.GetSize())};
+            Self::WriteMessage(channel,header,buf);
+            rkv::GetCompletedMigrationsResponse response;
+            Self::ReadMessage(channel,rkv::MessageType::GetCompletedMigrationsResponse,buf);
+            response.Unserialize().LoadFrom(buf);
+            for (auto begin = response.MigrationsBegin(),end = response.MigrationsEnd(); begin != end; ++begin)
+            {
+                *inserter++ = *begin;
+            }
+        }
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -111,6 +132,24 @@ namespace rkv
             {
                 auto conn{this->GetConnection(this->leaderId_.Get())};
                 Self::GetMigrationsByDestination(*conn,inserter,destination);
+            }
+            catch(const std::exception&)
+            {
+                this->leaderId_.Reset();
+                throw;
+            }
+        }
+
+        rkv::CompleteMigrationResult CompleteMigration(std::uint64_t groupId,const sharpen::IpEndPoint &id);
+
+        template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::CompletedMigration&>())>
+        void GetCompletedMigrations(_InsertIterator inserter,std::uint64_t beginId,std::uint64_t source)
+        {
+            this->FillLeaderId();
+            try
+            {
+                auto conn{this->GetConnection(this->leaderId_.Get())};
+                Self::GetCompletedMigrations(*conn,inserter,beginId,source);
             }
             catch(const std::exception&)
             {

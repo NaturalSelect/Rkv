@@ -16,4 +16,4 @@ file(GLOB_RECURSE src "${PROJECT_SOURCE_DIR}/ShardMasterClient" "*.h" "*.hpp" "*
 
 add_library(RkvMasterClient ${src} ${headers})
 
-target_link_libraries(RkvMasterClient sharpen::sharpen RkvShared RkvServer RkvClient)
+target_link_libraries(RkvMasterClient sharpen::sharpen RkvShared RkvClient)

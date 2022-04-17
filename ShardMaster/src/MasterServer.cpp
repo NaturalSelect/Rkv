@@ -25,7 +25,7 @@
 sharpen::ByteBuffer rkv::MasterServer::zeroKey_;
 
 rkv::MasterServer::MasterServer(sharpen::EventEngine &engine,const rkv::MasterServerOption &option)
-    :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.SelfId(),engine)
+    :sharpen::TcpServer(sharpen::AddressFamily::Ip,option.BindEndpoint(),engine)
     ,app_(nullptr)
     ,group_(nullptr)
     ,random_(std::random_device{}())
@@ -337,11 +337,9 @@ void rkv::MasterServer::OnGetShardById(sharpen::INetStreamChannel &channel,const
         }
         this->shards_->GetShards(response.GetShardsInserter(),request.Id());
     }
-    std::printf("[Info]Got %zu shards\n",response.GetSize());
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdResponse,resBuf.GetSize())};
-    std::puts("[Info]Write response");
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }
@@ -538,6 +536,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     //install shard
                     if(migrationsCount == Self::replicationFactor_)
                     {
+                        std::puts("[Info]A new shard has been created");
                         rkv::Shard shard;
                         for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
                         {
@@ -545,7 +544,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         }
                         shard.SetId(this->shards_->GetNextIndex());
                         shard.BeginKey() = std::move(migrations[0].BeginKey());
-                        index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
+                        index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index + 1,term);
                     }
                     else if(migrationsCount == 1)
                     {
@@ -558,7 +557,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
                         completedMigration.EndKey() = std::move(migrations[0].EndKey());
                         notifyShard = this->shards_->GetShardPtr(completedMigration.BeginKey());
-                        index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
+                        index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index + 1,term);
                     }
                     rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                     switch (result)

@@ -16,6 +16,7 @@ static void StopServer(rkv::MasterServer *server)
 
 static void Entry()
 {
+    const char *bindName = "./Config/Bind.txt";
     const char *idName = "./Config/MasterId.txt";
     const char *membersName = "./Config/MasterMembers.txt";
     const char *workerName = "./Config/Workers.txt";
@@ -24,16 +25,35 @@ static void Entry()
     std::puts("[Info]Reading configurations");
     sharpen::MakeDirectory("./Config");
     //read config
+    sharpen::IpEndPoint bind;
     sharpen::IpEndPoint id;
     std::vector<sharpen::IpEndPoint> members;
     std::vector<std::string> lines;
+    rkv::ReadAllLines(sharpen::EventEngine::GetEngine(),std::back_inserter(lines),bindName);
+    if (lines.empty())
+    {
+        std::fprintf(stderr,"[Error]Please edit %s to set server bind endpoint(ip port)\n",bindName);
+        return;
+    }
+    std::string first{std::move(lines.front())};
+    try
+    {
+        sharpen::IpEndPoint tmp{rkv::ConvertStringToEndPoint(first)};
+        bind = std::move(tmp);
+    }
+    catch(const std::exception& e)
+    {
+        std::fprintf(stderr,"[Error]Connot parse bind configuration %s because %s\n",first.c_str(),e.what());
+        return;
+    }
+    lines.clear();
     rkv::ReadAllLines(sharpen::EventEngine::GetEngine(),std::back_inserter(lines),idName);
     if(lines.empty())
     {
         std::fprintf(stderr,"[Error]Please edit %s to set server id(ip port)\n",idName);
         return;
     }
-    std::string first{std::move(lines.front())};
+    first = std::move(lines.front());
     try
     {
         sharpen::IpEndPoint tmp{rkv::ConvertStringToEndPoint(first)};
@@ -90,7 +110,7 @@ static void Entry()
             return;
         }
     }
-    rkv::MasterServerOption opt{id,members.begin(),members.end(),workers.begin(),workers.end()};
+    rkv::MasterServerOption opt{bind,id,members.begin(),members.end(),workers.begin(),workers.end()};
     //start server
     sharpen::StartupNetSupport();
     std::puts("[Info]Server started");
