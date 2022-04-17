@@ -81,6 +81,20 @@ rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(sharpen::INetS
     return response.GetResult();
 }
 
+sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardById(sharpen::INetStreamChannel &channel,std::uint64_t id)
+{
+    rkv::GetShardByIdRequest request;
+    request.SetId(id);
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByIdRequest,buf.GetSize())};
+    Self::WriteMessage(channel,header,buf);
+    rkv::GetShardByIdResponse response;
+    Self::ReadMessage(channel,rkv::MessageType::GetShardByIdResponse,buf);
+    response.Unserialize().LoadFrom(buf);
+    return response.Shard();
+}
+
 rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(std::uint64_t groupId,const sharpen::IpEndPoint &id)
 {
     rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};

@@ -8,6 +8,8 @@
 #include <rkv/Client.hpp>
 #include <rkv/GetShardByWorkerIdRequest.hpp>
 #include <rkv/GetShardByWorkerIdResponse.hpp>
+#include <rkv/GetShardByIdRequest.hpp>
+#include <rkv/GetShardByIdResponse.hpp>
 #include <rkv/GetCompletedMigrationsRequest.hpp>
 #include <rkv/GetCompletedMigrationsResponse.hpp>
 #include <rkv/GetMigrationsRequest.hpp>
@@ -86,6 +88,8 @@ namespace rkv
                 *inserter++ = *begin;
             }
         }
+
+        static sharpen::Optional<rkv::Shard> GetShardById(sharpen::INetStreamChannel &channel,std::uint64_t id);
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -105,6 +109,8 @@ namespace rkv
         }
 
         sharpen::Optional<rkv::Shard> GetShard(const sharpen::ByteBuffer &key);
+
+        sharpen::Optional<rkv::Shard> GetShard(std::uint64_t id);
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&>())>
         void GetShard(_InsertIterator inserter,const sharpen::IpEndPoint &id)

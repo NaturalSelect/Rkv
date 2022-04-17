@@ -87,6 +87,20 @@ const rkv::Shard *rkv::ShardManger::GetShardPtr(const sharpen::ByteBuffer &key) 
     return shard;
 }
 
+const rkv::Shard *rkv::ShardManger::GetShardPtr(std::uint64_t id) const noexcept
+{
+    const rkv::Shard *shard{nullptr};
+    for(auto begin = this->shards_.begin(),end = this->shards_.end(); begin != end; ++begin)
+    {
+        if(begin->GetId() == id)
+        {
+            shard = std::addressof(*begin);
+            break;
+        }   
+    }
+    return shard;
+}
+
 const rkv::Shard *rkv::ShardManger::FindShardPtr(const sharpen::ByteBuffer &beginKey) const noexcept
 {
     const rkv::Shard *shard{nullptr};
