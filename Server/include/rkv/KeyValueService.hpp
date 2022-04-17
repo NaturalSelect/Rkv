@@ -61,6 +61,16 @@ namespace rkv
         }
 
         void Apply(rkv::RaftLog log);
+
+        inline sharpen::LevelTableScanner GetScanner() const
+        {
+            return this->table_->Scan(true);
+        }
+
+        inline sharpen::LevelTableScanner GetScanner(const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey) const
+        {
+            return this->table_->Scan(beginKey,endKey,true);
+        }
     };
 }
 

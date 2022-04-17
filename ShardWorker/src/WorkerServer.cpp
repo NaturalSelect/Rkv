@@ -7,6 +7,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     :TcpServer(sharpen::AddressFamily::Ip,option.BindEndpoint(),engine)
     ,selfId_(option.SelfId())
     ,app_(nullptr)
+    ,clientLock_()
     ,client_(nullptr)
     ,groups_()
     ,counterFile_(nullptr)
@@ -26,7 +27,9 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
     {
-        this->ExecuteMigration(*begin);
+        //TODO:if dst == src
+        //skip
+        this->ExecuteMigrationAndNotify(*begin);
     }
     //get shards
     std::vector<rkv::Shard> shards;
@@ -74,3 +77,45 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     counterMemory.FlushAndWait();
 }
 
+std::string rkv::WorkerServer::FormatStorageName(std::uint64_t id)
+{
+    std::string str{"./Storage/Raft/"};
+    str += std::to_string(id);
+    return str;
+}
+
+void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &migration)
+{
+    std::vector<sharpen::ByteBuffer> keys;
+    {
+        auto scanner{this->app_->GetScanner(migration.BeginKey(),migration.EndKey())};
+        if(!scanner.IsEmpty())
+        {
+            keys.reserve(Self::maxKeysPerShard_);
+            do
+            {
+                keys.emplace_back(scanner.GetCurrentKey());
+            } while (scanner.Next());
+        }
+    }
+    for(auto begin = keys.begin(),end = keys.end(); begin != end; ++begin)
+    {
+        this->app_->Delete(*begin);
+    }   
+}
+
+void rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
+{
+    //TODO
+}
+
+void rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migration)
+{
+    this->ExecuteMigration(migration);
+    rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
+    while (result != rkv::CompleteMigrationResult::Appiled)
+    {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
+        result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
+    }
+}

@@ -31,9 +31,13 @@ namespace rkv
         using Self = rkv::WorkerServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
+        static constexpr std::size_t maxKeysPerShard_{5000};
+
         static std::string FormatStorageName(std::uint64_t id);
-        
+
         void ExecuteMigration(const rkv::Migration &migration);
+
+        void ExecuteMigrationAndNotify(const rkv::Migration &migration);
 
         void CleaupCompletedMigration(const rkv::CompletedMigration &migration);
 
@@ -55,6 +59,7 @@ namespace rkv
 
         sharpen::IpEndPoint selfId_;
         std::shared_ptr<rkv::KeyValueService> app_;
+        sharpen::AsyncMutex clientLock_;
         std::unique_ptr<rkv::MasterClient> client_;
         std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> groups_;
         sharpen::FileChannelPtr counterFile_;
