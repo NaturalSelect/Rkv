@@ -1,25 +1,26 @@
 #pragma once
-#ifndef _RKV_GETSHARDBYWORKERIDREQUEST_HPP
-#define _RKV_GETSHARDBYWORKERIDREQUEST_HPP
+#ifndef _RKV_GETSHARDBYIDRESPONSE_HPP
+#define _RKV_GETSHARDBYIDRESPONSE_HPP
 
-#include <sharpen/IpEndPoint.hpp>
 #include <sharpen/BinarySerializable.hpp>
+
+#include "Shard.hpp"
 
 namespace rkv
 {
-    class GetShardByWorkerIdRequest:public sharpen::BinarySerializable<rkv::GetShardByWorkerIdRequest>
+    class GetShardByIdResponse:public sharpen::BinarySerializable<rkv::GetShardByIdResponse>
     {
     private:
-        using Self = rkv::GetShardByWorkerIdRequest;
+        using Self = rkv::GetShardByIdResponse;
     
-        sharpen::IpEndPoint workerId_;
+        sharpen::Optional<rkv::Shard> shard_;
     public:
     
-        GetShardByWorkerIdRequest() = default;
+        GetShardByIdResponse() = default;
     
-        GetShardByWorkerIdRequest(const Self &other) = default;
+        GetShardByIdResponse(const Self &other) = default;
     
-        GetShardByWorkerIdRequest(Self &&other) noexcept = default;
+        GetShardByIdResponse(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -32,26 +33,26 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
-                this->workerId_ = std::move(other.workerId_);
+                this->shard_ = std::move(other.shard_);
             }
             return *this;
         }
     
-        ~GetShardByWorkerIdRequest() noexcept = default;
+        ~GetShardByIdResponse() noexcept = default;
     
         inline const Self &Const() const noexcept
         {
             return *this;
         }
 
-        inline sharpen::IpEndPoint &WorkerId() noexcept
+        inline sharpen::Optional<rkv::Shard> &Shard() noexcept
         {
-            return this->workerId_;
+            return this->shard_;
         }
 
-        inline const sharpen::IpEndPoint &WorkerId() const noexcept
+        inline const sharpen::Optional<rkv::Shard> &Shard() const noexcept
         {
-            return this->workerId_;
+            return this->shard_;
         }
 
         std::size_t ComputeSize() const noexcept;

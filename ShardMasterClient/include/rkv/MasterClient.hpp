@@ -32,7 +32,7 @@ namespace rkv
         static void GetShardByWorkerId(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
         {
             rkv::GetShardByWorkerIdRequest request;
-            request.Id() = id;
+            request.WorkerId() = id;
             sharpen::ByteBuffer buf;
             request.Serialize().StoreTo(buf);
             rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetShardByWorkerIdRequest,buf.GetSize())};

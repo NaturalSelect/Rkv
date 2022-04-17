@@ -1,25 +1,24 @@
 #pragma once
-#ifndef _RKV_GETSHARDBYWORKERIDREQUEST_HPP
-#define _RKV_GETSHARDBYWORKERIDREQUEST_HPP
+#ifndef _RKV_GETSHARDBYIDREQUEST_HPP
+#define _RKV_GETSHARDBYIDREQUEST_HPP
 
-#include <sharpen/IpEndPoint.hpp>
 #include <sharpen/BinarySerializable.hpp>
 
 namespace rkv
 {
-    class GetShardByWorkerIdRequest:public sharpen::BinarySerializable<rkv::GetShardByWorkerIdRequest>
+    class GetShardByIdRequest:public sharpen::BinarySerializable<rkv::GetShardByIdRequest>
     {
     private:
-        using Self = rkv::GetShardByWorkerIdRequest;
+        using Self = rkv::GetShardByIdRequest;
     
-        sharpen::IpEndPoint workerId_;
+        std::uint64_t id_;
     public:
     
-        GetShardByWorkerIdRequest() = default;
+        GetShardByIdRequest() = default;
     
-        GetShardByWorkerIdRequest(const Self &other) = default;
+        GetShardByIdRequest(const Self &other) = default;
     
-        GetShardByWorkerIdRequest(Self &&other) noexcept = default;
+        GetShardByIdRequest(Self &&other) noexcept = default;
     
         inline Self &operator=(const Self &other)
         {
@@ -32,26 +31,26 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
-                this->workerId_ = std::move(other.workerId_);
+                this->id_ = other.id_;
             }
             return *this;
         }
     
-        ~GetShardByWorkerIdRequest() noexcept = default;
+        ~GetShardByIdRequest() noexcept = default;
     
         inline const Self &Const() const noexcept
         {
             return *this;
         }
 
-        inline sharpen::IpEndPoint &WorkerId() noexcept
+        inline std::uint64_t GetId() const noexcept
         {
-            return this->workerId_;
+            return this->id_;
         }
 
-        inline const sharpen::IpEndPoint &WorkerId() const noexcept
+        inline void SetId(std::uint64_t id) noexcept
         {
-            return this->workerId_;
+            this->id_ = id;
         }
 
         std::size_t ComputeSize() const noexcept;

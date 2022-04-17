@@ -1,12 +1,12 @@
 #pragma once
-#ifndef _RKV_GETSHARDBYIDRESPONSE_HPP
-#define _RKV_GETSHARDBYIDRESPONSE_HPP
+#ifndef _RKV_GETSHARDBYWORKERIDRESPONSE_HPP
+#define _RKV_GETSHARDBYWORKERIDRESPONSE_HPP
 
 #include <iterator>
 
 #include <sharpen/BinarySerializable.hpp>
 
-#include <rkv/Shard.hpp>
+#include "Shard.hpp"
 
 namespace rkv
 {
