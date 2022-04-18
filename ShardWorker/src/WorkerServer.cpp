@@ -51,6 +51,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
             }
         }
     }
+    //TODO learn item
     //get shards
     std::vector<rkv::Shard> shards;
     this->client_->GetShard(std::back_inserter(shards),this->selfId_);
