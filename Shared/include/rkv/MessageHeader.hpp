@@ -41,11 +41,7 @@ namespace rkv
         MigrateRequest,
         MigrateResponse,
         StartMigrationRequest,
-        StartMigrationResponse,
-        WorkerJoinRequest,
-        WorkerJoinResponse,
-        WorkerLeaveRequest,
-        WorkerLeaveResponse
+        StartMigrationResponse
     };
 
     struct MessageHeader
