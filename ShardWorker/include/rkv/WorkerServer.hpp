@@ -56,7 +56,7 @@ namespace rkv
 
         void OnMigrate(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        void OnMigrateCompleted(sharpen::INetStreamChannel &channel);
+        void OnMigrateCompleted(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnStartMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
