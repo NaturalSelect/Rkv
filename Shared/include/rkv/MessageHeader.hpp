@@ -39,7 +39,9 @@ namespace rkv
         GetShardByIdRequest,
         GetShardByIdResponse,
         MigrateRequest,
-        MigrateResponse
+        MigrateResponse,
+        StartMigrationRequest,
+        StartMigrationResponse
     };
 
     struct MessageHeader

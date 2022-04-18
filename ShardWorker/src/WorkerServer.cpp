@@ -174,6 +174,42 @@ void rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
     }
 }
 
+void rkv::WorkerServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    rkv::LeaderRedirectRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::LeaderRedirectResponse response;
+    response.SetKnowLeader(false);
+    if(request.Group().Exist())
+    {
+        {
+            this->groupLock_.LockRead();
+            std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
+            auto ite = this->groups_.find(request.Group().Get());
+            if(ite != this->groups_.end())
+            {
+                if(ite->second->Raft().KnowLeader())
+                {
+                    try
+                    {
+                        response.Endpoint() = ite->second->Raft().GetLeaderId();
+                        response.SetKnowLeader(true);
+                    }
+                    catch(const std::exception& ignore)
+                    {
+                        static_cast<void>(ignore);
+                    }
+                }
+            }
+        }
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
 void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
@@ -202,9 +238,25 @@ void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             switch (type)
             {
             case rkv::MessageType::LeaderRedirectRequest:
-                
+                std::printf("[Info]Channel %s:%hu ask who is leader\n",ip,ep.GetPort());
+                this->OnLeaderRedirect(*channel,buf);
                 break;
-            
+            case rkv::MessageType::AppendEntriesRequest:
+                break;
+            case rkv::MessageType::VoteRequest:
+                break;
+            case rkv::MessageType::GetRequest:
+                break;
+            case rkv::MessageType::PutRequest:
+                break;
+            case rkv::MessageType::DeleteReqeust:
+                break;
+            case rkv::MessageType::MigrateRequest:
+                break;
+            case rkv::MessageType::MigrationComletedRequest:
+                break;
+            case rkv::MessageType::StartMigrationRequest:
+                break;
             default:
                 break;
             }

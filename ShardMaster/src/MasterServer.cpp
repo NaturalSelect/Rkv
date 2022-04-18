@@ -105,13 +105,16 @@ void rkv::MasterServer::FlushStatus()
     this->completedMigrations_->Flush();
 }
 
-void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel) const
+void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel)
 {
     rkv::LeaderRedirectResponse response;
-    response.SetKnowLeader(this->group_->Raft().KnowLeader());
-    if(response.KnowLeader())
     {
-        response.Endpoint() = this->group_->Raft().GetLeaderId();
+        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
+        response.SetKnowLeader(this->group_->Raft().KnowLeader());
+        if(response.KnowLeader())
+        {
+            response.Endpoint() = this->group_->Raft().GetLeaderId();
+        }
     }
     char buf[sizeof(bool) + sizeof(sharpen::IpEndPoint)];
     std::size_t sz{response.StoreTo(buf,sizeof(buf))};

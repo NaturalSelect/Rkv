@@ -9,6 +9,7 @@
 #include <sharpen/RaftWrapper.hpp>
 #include <sharpen/TimerLoop.hpp>
 #include <sharpen/AsyncMutex.hpp>
+#include <sharpen/AsyncReadWriteLock.hpp>
 
 #include <rkv/RaftLog.hpp>
 #include <rkv/RaftMember.hpp>
@@ -41,26 +42,27 @@ namespace rkv
 
         void CleaupCompletedMigration(const rkv::CompletedMigration &migration);
 
-        void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;
+        void OnLeaderRedirect(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        void OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf) const;
-
-        void OnPutFail(sharpen::INetStreamChannel &channel);
+        void OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
-        void OnDeleteFail(sharpen::INetStreamChannel &channel);
-
         void OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
         void OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnMigrate(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
+        void OnMigrateCompleted(sharpen::INetStreamChannel &channel);
 
         sharpen::IpEndPoint selfId_;
         std::shared_ptr<rkv::KeyValueService> app_;
         sharpen::AsyncMutex clientLock_;
         std::unique_ptr<rkv::MasterClient> client_;
+        mutable sharpen::AsyncReadWriteLock groupLock_;
         std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> groups_;
         std::map<std::uint64_t,std::size_t> keyCounter_;
         sharpen::FileChannelPtr counterFile_;

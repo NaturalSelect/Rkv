@@ -139,7 +139,7 @@ namespace rkv
             return rkv::AppendEntriesResult::Commited;
         }
 
-        void OnLeaderRedirect(sharpen::INetStreamChannel &channel) const;
+        void OnLeaderRedirect(sharpen::INetStreamChannel &channel);
 
         void OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
