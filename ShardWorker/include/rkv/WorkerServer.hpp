@@ -36,9 +36,21 @@ namespace rkv
 
         static std::string FormatStorageName(std::uint64_t id);
 
-        void ExecuteMigration(const rkv::Migration &migration);
+        sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> GetShardId(const sharpen::ByteBuffer &key) const noexcept;
 
-        void ExecuteMigrationAndNotify(const rkv::Migration &migration);
+        std::uint64_t GetKeyCounter(std::uint64_t id,const sharpen::ByteBuffer &beginKey);
+
+        std::uint64_t ScanKeyCount(std::uint64_t id,const sharpen::ByteBuffer &beginKey) const;
+
+        sharpen::Optional<sharpen::ByteBuffer> ScanKeys(const sharpen::ByteBuffer &beginKey,std::uint64_t count) const;
+
+        rkv::AppendEntriesResult ProposeAppendEntries(rkv::RaftGroup &group,std::uint64_t commitIndex);
+
+        void DeriveNewShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
+
+        bool ExecuteMigration(const rkv::Migration &migration);
+
+        bool ExecuteMigrationAndNotify(const rkv::Migration &migration);
 
         void CleaupCompletedMigration(const rkv::CompletedMigration &migration);
 
@@ -65,6 +77,7 @@ namespace rkv
         sharpen::AsyncMutex clientLock_;
         std::unique_ptr<rkv::MasterClient> client_;
         mutable sharpen::AsyncReadWriteLock groupLock_;
+        std::map<sharpen::ByteBuffer,std::uint64_t> shardMap_;
         std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> groups_;
         std::map<std::uint64_t,std::size_t> keyCounter_;
         sharpen::FileChannelPtr counterFile_;

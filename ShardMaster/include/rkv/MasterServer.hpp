@@ -43,9 +43,9 @@ namespace rkv
 
         bool TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept;
 
-        void NotifyMigrationCompleted(const sharpen::IpEndPoint &engpoint) const noexcept;
+        void NotifyMigrationCompleted(const sharpen::IpEndPoint &engpoint,const rkv::CompletedMigration &migration) const noexcept;
 
-        void NotifyStartMigration(const sharpen::IpEndPoint &engpoint);
+        void NotifyStartMigration(const sharpen::IpEndPoint &engpoint,const rkv::Migration &migration);
 
         void FlushStatus();
 
@@ -99,7 +99,7 @@ namespace rkv
         }
 
         template<typename _Iterator,typename _Check = decltype(std::declval<rkv::RaftLog&>() = *std::declval<_Iterator&>())>
-        inline rkv::AppendEntriesResult AppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
+        inline rkv::AppendEntriesResult ProposeAppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
         {
             this->group_->DelayCycle();
             std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};

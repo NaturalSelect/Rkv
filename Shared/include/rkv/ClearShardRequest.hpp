@@ -4,6 +4,8 @@
 
 #include <sharpen/BinarySerializable.hpp>
 
+#include "CompletedMigration.hpp"
+
 namespace rkv
 {
     class ClearShardRequest:public sharpen::BinarySerializable<rkv::ClearShardRequest>
@@ -11,8 +13,7 @@ namespace rkv
     private:
         using Self = rkv::ClearShardRequest;
     
-        sharpen::ByteBuffer beginKey_;
-        sharpen::ByteBuffer endKey_;
+        rkv::CompletedMigration migration_;
     public:
     
         ClearShardRequest() = default;
@@ -32,8 +33,7 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
-                this->beginKey_ = std::move(other.beginKey_);
-                this->endKey_ = std::move(other.endKey_);
+                this->migration_ = std::move(other.migration_);
             }
             return *this;
         }
@@ -45,24 +45,14 @@ namespace rkv
             return *this;
         }
 
-        inline sharpen::ByteBuffer &BeginKey() noexcept
+        inline rkv::CompletedMigration &Migration() noexcept
         {
-            return this->beginKey_;
+            return this->migration_;
         }
-        
-        inline const sharpen::ByteBuffer &BeginKey() const noexcept
+
+        inline const rkv::CompletedMigration &Migration() const noexcept
         {
-            return this->beginKey_;
-        }
-        
-        inline sharpen::ByteBuffer &EndKey() noexcept
-        {
-            return this->endKey_;
-        }
-        
-        inline const sharpen::ByteBuffer &EndKey() const noexcept
-        {
-            return this->endKey_;
+            return this->migration_;
         }
 
         std::size_t ComputeSize() const noexcept;

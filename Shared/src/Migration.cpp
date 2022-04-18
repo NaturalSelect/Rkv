@@ -6,7 +6,7 @@ std::size_t rkv::Migration::ComputeSize() const noexcept
     sharpen::Varuint64 builder{this->id_};
     size += Helper::ComputeSize(builder);
     builder.Set(this->groupId_);
-    size += Helper::ComputeSize(this->groupId_);
+    size += Helper::ComputeSize(builder);
     builder.Set(this->source_);
     size += Helper::ComputeSize(builder);
     size += Helper::ComputeSize(this->destination_);

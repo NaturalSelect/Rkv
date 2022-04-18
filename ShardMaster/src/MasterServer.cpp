@@ -23,6 +23,10 @@
 #include <rkv/CompleteMigrationResponse.hpp>
 #include <rkv/GetShardByIdRequest.hpp>
 #include <rkv/GetShardByIdResponse.hpp>
+#include <rkv/ClearShardRequest.hpp>
+#include <rkv/ClearShardResponse.hpp>
+#include <rkv/StartMigrationRequest.hpp>
+#include <rkv/StartMigrationResponse.hpp>
 
 sharpen::ByteBuffer rkv::MasterServer::zeroKey_;
 
@@ -249,7 +253,7 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
                         std::vector<rkv::RaftLog> logs;
                         logs.reserve(2);
                         index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
-                        rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                        rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                         switch (result)
                         {
                         case rkv::AppendEntriesResult::Appiled:
@@ -330,7 +334,7 @@ void rkv::MasterServer::OnGetShardByWorkerId(sharpen::INetStreamChannel &channel
                         std::vector<rkv::RaftLog> logs;
                         logs.reserve(2);
                         index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
-                        rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                        rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                         switch (result)
                         {
                         case rkv::AppendEntriesResult::Appiled:
@@ -356,11 +360,22 @@ void rkv::MasterServer::OnGetShardByWorkerId(sharpen::INetStreamChannel &channel
     channel.WriteAsync(resBuf);
 }
 
-void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id)
+void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const rkv::Migration &migration)
 {
     try
     {
-        //TODO
+        sharpen::IpEndPoint ep{0,0};
+        sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
+        channel->Bind(ep);
+        channel->Register(*this->engine_);
+        channel->ConnectAsync(id);
+        sharpen::ByteBuffer buf;
+        rkv::StartMigrationRequest request;
+        request.Migration() = migration;
+        request.Serialize().StoreTo(buf);
+        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
+        channel->WriteObjectAsync(header);
+        channel->WriteAsync(buf);
     }
     catch(const std::exception &ignore)
     {
@@ -422,7 +437,7 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                             std::vector<rkv::RaftLog> logs;
                             logs.reserve(count);
                             index = this->migrations_->GenrateEmplaceLogs(std::back_inserter(logs),migrations.begin(),migrations.end(),index,term);
-                            rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                            rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                             switch (result)
                             {
                             case rkv::AppendEntriesResult::Appiled:
@@ -442,6 +457,16 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                         }
                     }
                 }
+            }
+        }
+        //notify
+        {
+            std::vector<rkv::Migration> migrations;
+            this->migrations_->GetMigrations(std::back_inserter(migrations),request.BeginKey());
+            for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
+            {
+                this->NotifyStartMigration(begin->Destination(),*begin);
+            
             }
         }
     }
@@ -486,11 +511,22 @@ void rkv::MasterServer::OnGetMigrations(sharpen::INetStreamChannel &channel,cons
     channel.WriteAsync(resBuf);
 }
 
-void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id) const noexcept
+void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id,const rkv::CompletedMigration &migration) const noexcept
 {
     try
     {
-        //TODO
+        sharpen::IpEndPoint ep{0,0};
+        sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
+        channel->Bind(ep);
+        channel->Register(*this->engine_);
+        channel->ConnectAsync(id);
+        sharpen::ByteBuffer buf;
+        rkv::ClearShardRequest request;
+        request.Migration() = migration;
+        request.Serialize().StoreTo(buf);
+        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
+        channel->WriteObjectAsync(header);
+        channel->WriteAsync(buf);
     }
     catch(const std::exception &ignore)
     {
@@ -546,6 +582,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     std::vector<rkv::RaftLog> logs;
                     logs.reserve(Self::reverseLogsCount_);
                     std::size_t migrationsCount{migrations.size()};
+                    sharpen::Optional<rkv::CompletedMigration> notifyMigration;
                     const rkv::Shard *notifyShard{nullptr};
                     std::uint64_t indexOffset{0};
                     //install shard
@@ -576,8 +613,9 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                             completedMigration.SetSource(migrations[0].GetSource());
                             completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
                             completedMigration.EndKey() = std::move(migrations[0].EndKey());
-                            notifyShard = this->shards_->GetShardPtr(completedMigration.BeginKey());
                             index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
+                            notifyMigration.Construct(std::move(completedMigration));
+                            notifyShard = shard;
                             indexOffset = 1;
                         }
                     }
@@ -590,7 +628,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                             break;
                         }
                     }
-                    rkv::AppendEntriesResult result{this->AppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
+                    rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                     switch (result)
                     {
                     case rkv::AppendEntriesResult::Appiled:
@@ -603,13 +641,15 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         response.SetResult(rkv::CompleteMigrationResult::NotCommit);
                         break;
                     }
-                    if(notifyShard)
+                    //notify
+                    if(notifyMigration.Exist() && notifyShard)
                     {
                         std::vector<sharpen::IpEndPoint> workers{notifyShard->Workers()};
                         statusLock.unlock();
+                        std::size_t i{0};
                         for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
                         {
-                            this->NotifyMigrationCompleted(*begin);
+                            this->NotifyMigrationCompleted(*begin,notifyMigration.Get());
                         }
                     }
                 }
