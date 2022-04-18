@@ -108,12 +108,17 @@ void rkv::MasterServer::FlushStatus()
 void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel)
 {
     rkv::LeaderRedirectResponse response;
+    response.SetKnowLeader(false);
+    if (this->group_->Raft().KnowLeader())
     {
-        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
-        response.SetKnowLeader(this->group_->Raft().KnowLeader());
-        if(response.KnowLeader())
+        try
         {
             response.Endpoint() = this->group_->Raft().GetLeaderId();
+            response.SetKnowLeader(true);
+        }
+        catch(const std::exception& ignore)
+        {
+            static_cast<void>(ignore);
         }
     }
     char buf[sizeof(bool) + sizeof(sharpen::IpEndPoint)];
@@ -133,6 +138,7 @@ void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
     std::uint64_t lastAppiled{0};
     std::printf("[Info]Channel want to append entries to host term is %llu prev log index is %llu prev log term is %llu commit index is %llu\n",request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
     {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
         result = this->group_->Raft().AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
         currentTerm = this->group_->Raft().GetCurrentTerm();
         lastAppiled = this->group_->Raft().GetLastApplied();
@@ -168,6 +174,7 @@ void rkv::MasterServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
     bool result{false};
     std::uint64_t currentTerm{0};
     {
+        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
         result = this->group_->Raft().RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
         currentTerm = this->group_->Raft().GetCurrentTerm();
     }

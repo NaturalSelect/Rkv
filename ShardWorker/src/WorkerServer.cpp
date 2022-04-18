@@ -3,6 +3,11 @@
 #include <sharpen/Quorum.hpp>
 #include <sharpen/FileOps.hpp>
 
+#include <rkv/AppendEntriesRequest.hpp>
+#include <rkv/AppendEntriesResponse.hpp>
+#include <rkv/VoteRequest.hpp>
+#include <rkv/VoteResponse.hpp>
+
 rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option)
     :TcpServer(sharpen::AddressFamily::Ip,option.BindEndpoint(),engine)
     ,selfId_(option.SelfId())
@@ -210,6 +215,72 @@ void rkv::WorkerServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel,con
     channel.WriteAsync(resBuf);
 }
 
+void rkv::WorkerServer::OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    rkv::AppendEntriesRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::AppendEntriesResponse response;
+    bool result{false};
+    std::uint64_t lastAppiled{0};
+    std::uint64_t currentTerm{0};
+    if(request.Group().Exist())
+    {
+        {
+            this->groupLock_.LockRead();
+            std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
+            auto ite = this->groups_.find(request.Group().Get());
+            if(ite != this->groups_.end())
+            {
+                ite->second->DelayCycle();
+                {
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
+                    result = ite->second->Raft().AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
+                    lastAppiled = ite->second->Raft().GetLastApplied();
+                    currentTerm = ite->second->Raft().GetCurrentTerm();
+                }
+            }
+        }
+    }
+    response.SetResult(result);
+    response.SetAppiledIndex(lastAppiled);
+    response.SetTerm(currentTerm);
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::AppendEntriesResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
+void rkv::WorkerServer::OnRequestVote(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    rkv::VoteRequest request;
+    request.Unserialize().LoadFrom(buf);
+    rkv::VoteResponse response;
+    bool result{false};
+    std::uint64_t term{0};
+    if(request.Group().Exist())
+    {
+        {
+            this->groupLock_.LockRead();
+            std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
+            auto ite = this->groups_.find(request.Group().Get());
+            if(ite != this->groups_.end())
+            {
+                std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
+                result = ite->second->Raft().RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
+                term = ite->second->Raft().GetCurrentTerm();
+            }
+        }
+    }
+    response.SetTerm(term);
+    response.SetResult(result);
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteRequest,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
 void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
@@ -270,7 +341,7 @@ void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 this->OnMigrateCompleted(*channel);
                 break;
             case rkv::MessageType::StartMigrationRequest:
-                
+
                 break;
             default:
                 break;
