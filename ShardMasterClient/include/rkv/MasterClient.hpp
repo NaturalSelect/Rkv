@@ -23,7 +23,7 @@
 
 namespace rkv
 {
-    class MasterClient:rkv::Client
+    class MasterClient:public rkv::Client
     {
     private:
         using Self = rkv::MasterClient;
