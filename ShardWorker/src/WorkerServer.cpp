@@ -242,20 +242,35 @@ void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 this->OnLeaderRedirect(*channel,buf);
                 break;
             case rkv::MessageType::AppendEntriesRequest:
+                std::printf("[Info]Channel %s:%hu want to append entries\n",ip,ep.GetPort());
+                this->OnAppendEntries(*channel,buf);
                 break;
             case rkv::MessageType::VoteRequest:
+                std::printf("[Info]Channel %s:%hu want to request vote\n",ip,ep.GetPort());
+                this->OnRequestVote(*channel,buf);
                 break;
             case rkv::MessageType::GetRequest:
+                std::printf("[Info]Channel %s:%hu want to get a value\n",ip,ep.GetPort());
+                this->OnGet(*channel,buf);
                 break;
             case rkv::MessageType::PutRequest:
+                std::printf("[Info]Channel %s:%hu want to put a key value pair\n",ip,ep.GetPort());
+                this->OnPut(*channel,buf);
                 break;
             case rkv::MessageType::DeleteReqeust:
+                std::printf("[Info]Channel %s:%hu want to delete a key value pair\n",ip,ep.GetPort());
+                this->OnDelete(*channel,buf);
                 break;
             case rkv::MessageType::MigrateRequest:
+                std::printf("[Info]Channel %s:%hu want to migrate data from host\n",ip,ep.GetPort());
+                this->OnMigrate(*channel,buf);
                 break;
             case rkv::MessageType::MigrationComletedRequest:
+                std::printf("[Info]Channel %s:%hu want to notify host a migration completed\n",ip,ep.GetPort());
+                this->OnMigrateCompleted(*channel);
                 break;
             case rkv::MessageType::StartMigrationRequest:
+                
                 break;
             default:
                 break;

@@ -58,6 +58,8 @@ namespace rkv
 
         void OnMigrateCompleted(sharpen::INetStreamChannel &channel);
 
+        void OnStartMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
+
         sharpen::IpEndPoint selfId_;
         std::shared_ptr<rkv::KeyValueService> app_;
         sharpen::AsyncMutex clientLock_;
