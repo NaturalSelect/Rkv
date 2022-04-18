@@ -281,6 +281,36 @@ void rkv::WorkerServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
     channel.WriteAsync(resBuf);
 }
 
+void rkv::WorkerServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    //TODO
+}
+
+void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    //TODO
+}
+
+void rkv::WorkerServer::OnDelete(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    //TODO
+}
+
+void rkv::WorkerServer::OnMigrate(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    //TOOD
+}
+
+void rkv::WorkerServer::OnMigrateCompleted(sharpen::INetStreamChannel &channel)
+{
+    //TODO
+}
+
+void rkv::WorkerServer::OnStartMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+{
+    //TODO
+}
+
 void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
