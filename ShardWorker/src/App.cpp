@@ -41,10 +41,10 @@ static void Entry()
     sharpen::IpEndPoint id;
     id.SetAddrByString("127.0.0.1");
     id.SetPort(8083);
-    //client.GetShard(std::back_inserter(shards),id);
+    client.GetShard(std::back_inserter(shards),id);
     sharpen::ByteBuffer beginKey{"1021",5};
     sharpen::ByteBuffer endKey{"10022",5};
-    auto r = client.DeriveShard(0,beginKey,endKey);
+    //auto r = client.DeriveShard(0,beginKey,endKey);
     sharpen::CleanupNetSupport();
 }
 

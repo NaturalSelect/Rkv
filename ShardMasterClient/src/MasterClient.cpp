@@ -1,6 +1,6 @@
 #include <rkv/MasterClient.hpp>
 
-sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key)
+sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardByKey(sharpen::NetStreamChannelPtr channel,const sharpen::ByteBuffer &key)
 {
     rkv::GetShardByKeyRequest request;
     request.Key() = key;
@@ -20,7 +20,7 @@ sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShard(const sharpen::ByteBuf
     try
     {
         auto conn{this->GetConnection(this->leaderId_.Get())};
-        return Self::GetShardByKey(*conn,key);
+        return Self::GetShardByKey(conn,key);
     }
     catch(const std::exception&)
     {
@@ -35,7 +35,7 @@ sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShard(std::uint64_t id)
     try
     {
         auto conn{this->GetConnection(this->leaderId_.Get())};
-        return Self::GetShardById(*conn,id);
+        return Self::GetShardById(conn,id);
     }
     catch(const std::exception&)
     {
@@ -44,7 +44,7 @@ sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShard(std::uint64_t id)
     }
 }
 
-rkv::DeriveResult rkv::MasterClient::DeriveNewShard(sharpen::INetStreamChannel &channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey)
+rkv::DeriveResult rkv::MasterClient::DeriveNewShard(sharpen::NetStreamChannelPtr channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey)
 {
     rkv::DeriveShardRequest request;
     request.SetSource(source);
@@ -69,7 +69,7 @@ rkv::DeriveResult rkv::MasterClient::DeriveShard(std::uint64_t source,const shar
         {
             this->FillLeaderId();
             auto conn{this->GetConnection(this->leaderId_.Get())};
-            result = Self::DeriveNewShard(*conn,source,beginKey,endKey);
+            result = Self::DeriveNewShard(conn,source,beginKey,endKey);
             if (result == rkv::DeriveResult::NotCommit)
             {
                 this->leaderId_.Reset();
@@ -89,7 +89,7 @@ rkv::DeriveResult rkv::MasterClient::DeriveShard(std::uint64_t source,const shar
     return result;
 }
 
-rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(sharpen::INetStreamChannel &channel,std::uint64_t groupId,const sharpen::IpEndPoint &id)
+rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(sharpen::NetStreamChannelPtr channel,std::uint64_t groupId,const sharpen::IpEndPoint &id)
 {
     rkv::CompleteMigrationRequest request;
     request.SetGroupId(groupId);
@@ -104,7 +104,7 @@ rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(sharpen::INetS
     return response.GetResult();
 }
 
-sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardById(sharpen::INetStreamChannel &channel,std::uint64_t id)
+sharpen::Optional<rkv::Shard> rkv::MasterClient::GetShardById(sharpen::NetStreamChannelPtr channel,std::uint64_t id)
 {
     rkv::GetShardByIdRequest request;
     request.SetId(id);
@@ -127,7 +127,7 @@ rkv::CompleteMigrationResult rkv::MasterClient::CompleteMigration(std::uint64_t 
         {
             this->FillLeaderId();
             auto conn{this->GetConnection(this->leaderId_.Get())};
-            result = Self::CompleteMigration(*conn,groupId,id);
+            result = Self::CompleteMigration(conn,groupId,id);
             if(result == rkv::CompleteMigrationResult::NotCommit)
             {
                 this->leaderId_.Reset();

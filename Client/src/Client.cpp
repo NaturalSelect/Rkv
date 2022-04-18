@@ -31,29 +31,29 @@ sharpen::NetStreamChannelPtr rkv::Client::MakeConnection(sharpen::EventEngine &e
     return conn;
 }
 
-void rkv::Client::WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header)
+void rkv::Client::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header)
 {
-    std::size_t sz{channel.WriteObjectAsync(header)};
+    std::size_t sz{channel->WriteObjectAsync(header)};
     if(sz != sizeof(header))
     {
         sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
     }
 }
 
-void rkv::Client::WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request)
+void rkv::Client::WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request)
 {
     Self::WriteMessage(channel,header);
-    std::size_t sz{channel.WriteAsync(request)};
+    std::size_t sz{channel->WriteAsync(request)};
     if(sz != request.GetSize())
     {
         sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
     }
 }
 
-void rkv::Client::ReadMessage(sharpen::INetStreamChannel &channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response)
+void rkv::Client::ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response)
 {
     rkv::MessageHeader header;
-    std::size_t sz{channel.ReadObjectAsync(header)};
+    std::size_t sz{channel->ReadObjectAsync(header)};
     if(sz != sizeof(header))
     {
         sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
@@ -63,7 +63,7 @@ void rkv::Client::ReadMessage(sharpen::INetStreamChannel &channel,rkv::MessageTy
         throw std::logic_error("got unexpected response");
     }
     response.ExtendTo(sharpen::IntCast<std::size_t>(header.size_));
-    sz = channel.ReadFixedAsync(response);
+    sz = channel->ReadFixedAsync(response);
     if(sz != response.GetSize())
     {
         sharpen::ThrowSystemError(sharpen::ErrorConnectReset);
@@ -88,7 +88,7 @@ void rkv::Client::EraseConnection(const sharpen::IpEndPoint &id)
     ite->second.reset();
 }
 
-sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::INetStreamChannel &channel,sharpen::Optional<std::uint64_t> group)
+sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::NetStreamChannelPtr channel,sharpen::Optional<std::uint64_t> group)
 {
     rkv::LeaderRedirectRequest request;
     request.Group() = group;
@@ -96,7 +96,14 @@ sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::INetStr
     request.Serialize().StoreTo(buf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,buf.GetSize())};
     Self::WriteMessage(channel,header,buf);
-    Self::ReadMessage(channel,rkv::MessageType::LeaderRedirectResponse,buf);
+    try
+    {
+        Self::ReadMessage(channel,rkv::MessageType::LeaderRedirectResponse,buf);
+    }
+    catch(const std::exception &)
+    {
+        throw std::logic_error("operation has been cancel");
+    }
     rkv::LeaderRedirectResponse response;
     response.Unserialize().LoadFrom(buf);
     if(response.KnowLeader())
@@ -126,7 +133,7 @@ void rkv::Client::FillLeaderId()
     {
         try
         {
-            auto tmp{Self::GetLeaderId(*conn,this->group_)};
+            auto tmp{Self::GetLeaderId(conn,this->group_)};
             if(tmp.Exist())
             {
                 this->leaderId_.Construct(tmp.Get());

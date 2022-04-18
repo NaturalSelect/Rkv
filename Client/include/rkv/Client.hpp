@@ -20,13 +20,13 @@ namespace rkv
     private:
         using Self = rkv::Client;
     protected:
-        static void WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header);
+        static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header);
 
-        static void WriteMessage(sharpen::INetStreamChannel &channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request);
+        static void WriteMessage(sharpen::NetStreamChannelPtr channel,const rkv::MessageHeader &header,const sharpen::ByteBuffer &request);
 
-        static void ReadMessage(sharpen::INetStreamChannel &channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
+        static void ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
 
-        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::INetStreamChannel &channel,sharpen::Optional<std::uint64_t> group);
+        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel,sharpen::Optional<std::uint64_t> group);
 
         sharpen::IpEndPoint GetRandomId() const noexcept;
 
@@ -104,6 +104,17 @@ namespace rkv
         inline const sharpen::Optional<std::uint64_t> &Group() const noexcept
         {
             return this->group_;
+        }
+
+        inline void Cancel()
+        {
+            for (auto begin = this->serverMap_.begin(),end = this->serverMap_.end(); begin != end; ++begin)
+            {
+                if(begin->second)
+                {
+                    begin->second->Close();
+                }
+            }
         }
     };
 }

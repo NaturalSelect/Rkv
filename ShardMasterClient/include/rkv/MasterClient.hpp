@@ -28,10 +28,10 @@ namespace rkv
     private:
         using Self = rkv::MasterClient;
     
-        static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &key);
+        static sharpen::Optional<rkv::Shard> GetShardByKey(sharpen::NetStreamChannelPtr channel,const sharpen::ByteBuffer &key);
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Shard&&>())>
-        static void GetShardByWorkerId(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
+        static void GetShardByWorkerId(sharpen::NetStreamChannelPtr channel,_InsertIterator inserter,const sharpen::IpEndPoint &id)
         {
             rkv::GetShardByWorkerIdRequest request;
             request.WorkerId() = id;
@@ -48,10 +48,10 @@ namespace rkv
             }
         }
 
-        static rkv::DeriveResult DeriveNewShard(sharpen::INetStreamChannel &channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
+        static rkv::DeriveResult DeriveNewShard(sharpen::NetStreamChannelPtr channel,std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<rkv::Migration&&>())>
-        static void GetMigrationsByDestination(sharpen::INetStreamChannel &channel,_InsertIterator inserter,const sharpen::IpEndPoint &destination)
+        static void GetMigrationsByDestination(sharpen::NetStreamChannelPtr channel,_InsertIterator inserter,const sharpen::IpEndPoint &destination)
         {
             rkv::GetMigrationsRequest request;
             request.Destination() = destination;
@@ -68,10 +68,10 @@ namespace rkv
             }
         }
 
-        static rkv::CompleteMigrationResult CompleteMigration(sharpen::INetStreamChannel &channel,std::uint64_t groupId,const sharpen::IpEndPoint &id);
+        static rkv::CompleteMigrationResult CompleteMigration(sharpen::NetStreamChannelPtr channel,std::uint64_t groupId,const sharpen::IpEndPoint &id);
 
         template<typename _InsertIterator,typename _Check = decltype(*std::declval<_InsertIterator&>()++ = std::declval<const rkv::CompletedMigration&>())>
-        static void GetCompletedMigrations(sharpen::INetStreamChannel &channel,_InsertIterator inserter,std::uint64_t beginId,std::uint64_t source)
+        static void GetCompletedMigrations(sharpen::NetStreamChannelPtr channel,_InsertIterator inserter,std::uint64_t beginId,std::uint64_t source)
         {
             rkv::GetCompletedMigrationsRequest request;
             request.SetSource(source);
@@ -89,7 +89,7 @@ namespace rkv
             }
         }
 
-        static sharpen::Optional<rkv::Shard> GetShardById(sharpen::INetStreamChannel &channel,std::uint64_t id);
+        static sharpen::Optional<rkv::Shard> GetShardById(sharpen::NetStreamChannelPtr channel,std::uint64_t id);
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
@@ -119,7 +119,7 @@ namespace rkv
             try
             {
                 auto conn{this->GetConnection(this->leaderId_.Get())};
-                Self::GetShardByWorkerId(*conn,inserter,id);
+                Self::GetShardByWorkerId(conn,inserter,id);
             }
             catch(const std::exception&)
             {
@@ -137,7 +137,7 @@ namespace rkv
             try
             {
                 auto conn{this->GetConnection(this->leaderId_.Get())};
-                Self::GetMigrationsByDestination(*conn,inserter,destination);
+                Self::GetMigrationsByDestination(conn,inserter,destination);
             }
             catch(const std::exception&)
             {
@@ -155,7 +155,7 @@ namespace rkv
             try
             {
                 auto conn{this->GetConnection(this->leaderId_.Get())};
-                Self::GetCompletedMigrations(*conn,inserter,beginId,source);
+                Self::GetCompletedMigrations(conn,inserter,beginId,source);
             }
             catch(const std::exception&)
             {
