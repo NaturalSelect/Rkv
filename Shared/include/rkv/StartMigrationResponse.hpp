@@ -1,0 +1,5 @@
+#pragma once
+#ifndef _RKV_STARTMIGRATIONRESPONSE_HPP
+#define _RKV_STARTMIGRATIONRESPONSE_HPP
+
+#endif

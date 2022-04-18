@@ -34,8 +34,8 @@ namespace rkv
         DeleteCompletedMigrationResponse,
         CompleteMigrationRequest, //worker to master
         CompleteMigrationResponse,
-        MigrationComletedRequest,  //master to worker
-        MigrationCompletedResponse,
+        ClearShardRequest,  //master to worker
+        ClearShardResponse,
         GetShardByIdRequest,
         GetShardByIdResponse,
         MigrateRequest,

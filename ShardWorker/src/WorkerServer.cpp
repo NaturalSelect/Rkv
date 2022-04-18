@@ -301,7 +301,7 @@ void rkv::WorkerServer::OnMigrate(sharpen::INetStreamChannel &channel,const shar
     //TOOD
 }
 
-void rkv::WorkerServer::OnMigrateCompleted(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
+void rkv::WorkerServer::OnClearShard(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     //TODO
 }
@@ -366,9 +366,9 @@ void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
                 std::printf("[Info]Channel %s:%hu want to migrate data from host\n",ip,ep.GetPort());
                 this->OnMigrate(*channel,buf);
                 break;
-            case rkv::MessageType::MigrationComletedRequest:
+            case rkv::MessageType::ClearShardRequest:
                 std::printf("[Info]Channel %s:%hu want to notify host a migration completed\n",ip,ep.GetPort());
-                this->OnMigrateCompleted(*channel,buf);
+                this->OnClearShard(*channel,buf);
                 break;
             case rkv::MessageType::StartMigrationRequest:
                 std::printf("[Info]Channel %s:%hu want to notify host to start a migration\n",ip,ep.GetPort());
