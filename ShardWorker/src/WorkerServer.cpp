@@ -712,7 +712,7 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
     rkv::PutRequest request;
     request.Unserialize().LoadFrom(buf);
     rkv::PutResponse response;
-    response.SetResult(rkv::MotifyResult::NotStore);
+    response.SetResult(rkv::MotifyResult::NotCommit);
     {
         this->groupLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
@@ -735,9 +735,14 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                             sharpen::Optional<sharpen::ByteBuffer> lastKey{this->ScanKeys(midKey.Get(),Self::maxKeysPerShard_/2)};
                             if(lastKey.Exist())
                             {
-                                this->DeriveNewShard(shard.Get().first,midKey.Get(),lastKey.Get());
-                                adjust = false;
-                                hasRoom = false;
+                                std::uint64_t midId{this->GetShardId(midKey.Get()).Get().first};
+                                std::uint64_t lastId{this->GetShardId(lastKey.Get()).Get().first};
+                                if(midId == lastId && midId == shard.Get().first)
+                                {
+                                    this->DeriveNewShard(shard.Get().first,midKey.Get(),lastKey.Get());
+                                    adjust = false;
+                                    hasRoom = false;
+                                }
                             }
                         }
                         if(adjust)
@@ -780,10 +785,6 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                                     break;
                                 }
                             }
-                            else
-                            {
-                                response.SetResult(rkv::MotifyResult::NotCommit);
-                            }
                         }
                     }
                 }
@@ -802,7 +803,7 @@ void rkv::WorkerServer::OnDelete(sharpen::INetStreamChannel &channel,const sharp
     rkv::DeleteRequest request;
     request.Unserialize().LoadFrom(buf);
     rkv::DeleteResponse response;
-    response.SetResult(rkv::MotifyResult::NotStore);
+    response.SetResult(rkv::MotifyResult::NotCommit);
     {
         this->groupLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
@@ -839,10 +840,6 @@ void rkv::WorkerServer::OnDelete(sharpen::INetStreamChannel &channel,const sharp
                         response.SetResult(rkv::MotifyResult::Appiled);
                         break;
                     }
-                }
-                else
-                {
-                    response.SetResult(rkv::MotifyResult::NotCommit);
                 }
             }
         }
