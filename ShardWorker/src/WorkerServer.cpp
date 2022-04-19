@@ -42,6 +42,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     }
     //get migrations
     std::vector<rkv::Migration> migrations;
+    std::set<sharpen::ByteBuffer> badShards;
     this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
     {
@@ -59,7 +60,10 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
             }
             if(!skip)
             {
-                this->ExecuteMigrationAndNotify(*begin);
+                if(!this->ExecuteMigrationAndNotify(*begin))
+                {
+                    badShards.emplace(begin->BeginKey());
+                }
             }
         }
     }
@@ -68,22 +72,28 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     this->client_->GetShard(std::back_inserter(shards),this->selfId_);
     for (auto begin = shards.begin(),end = shards.end(); begin != end; ++begin)
     {
-        std::unique_ptr<rkv::RaftGroup> group{new rkv::RaftGroup{engine,this->selfId_,rkv::RaftStorage{engine,Self::FormatStorageName(begin->GetId())},this->app_}};
-        if(!group)
+        if(!badShards.count(begin->BeginKey()))
         {
-            throw std::bad_alloc();
-        }
-        std::uint64_t lastAppiled{group->Raft().GetLastApplied()};
-        for(auto workerBegin = begin->Workers().begin(),workerEnd = begin->Workers().end(); workerBegin != workerEnd; ++workerBegin)
-        {
-            if(*workerBegin != this->selfId_)
+            if(begin->BeginKey().Empty() || this->app_->Exist(begin->BeginKey()) == sharpen::ExistStatus::Exist)
             {
-                rkv::RaftMember member{*workerBegin,engine};
-                member.SetCurrentIndex(lastAppiled);
-                group->Raft().Members().emplace(*workerBegin,std::move(member));
+                std::unique_ptr<rkv::RaftGroup> group{new rkv::RaftGroup{engine,this->selfId_,rkv::RaftStorage{engine,Self::FormatStorageName(begin->GetId())},this->app_}};
+                if(!group)
+                {
+                    throw std::bad_alloc();
+                }
+                std::uint64_t lastAppiled{group->Raft().GetLastApplied()};
+                for(auto workerBegin = begin->Workers().begin(),workerEnd = begin->Workers().end(); workerBegin != workerEnd; ++workerBegin)
+                {
+                    if(*workerBegin != this->selfId_)
+                    {
+                        rkv::RaftMember member{*workerBegin,engine};
+                        member.SetCurrentIndex(lastAppiled);
+                        group->Raft().Members().emplace(*workerBegin,std::move(member));
+                    }
+                }
+                this->groups_.emplace(begin->GetId(),std::move(group));
             }
         }
-        this->groups_.emplace(begin->GetId(),std::move(group));
     }
     //get completed migrations
     this->counterFile_ = sharpen::MakeFileChannel("./Storage/CompletedCounter.bin",sharpen::FileAccessModel::All,sharpen::FileOpenModel::CreateOrOpen);

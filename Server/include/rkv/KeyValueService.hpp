@@ -71,6 +71,11 @@ namespace rkv
         {
             return this->table_->Scan(beginKey,endKey,true);
         }
+
+        inline sharpen::ExistStatus Exist(const sharpen::ByteBuffer &key) const
+        {
+            return this->table_->Exist(key);
+        }
     };
 }
 

@@ -116,6 +116,15 @@ namespace rkv
                 }
             }
         }
+
+        inline void Reset()
+        {
+            this->leaderId_.Reset();
+            for (auto begin = this->serverMap_.begin(),end = this->serverMap_.end(); begin != end; ++begin)
+            {
+                begin->second.reset();
+            }
+        }
     };
 }
 
