@@ -79,15 +79,6 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     //get shards
     std::vector<rkv::Shard> shards{this->FlushShard(&badShards)};
     //get completed migrations
-    this->counterFile_ = sharpen::MakeFileChannel("./Storage/CompletedCounter.bin",sharpen::FileAccessModel::All,sharpen::FileOpenModel::CreateOrOpen);
-    this->counterFile_->Register(engine);
-    std::uint64_t size{this->counterFile_->GetFileSize()};
-    if(!size)
-    {
-        this->counterFile_->ZeroMemoryAsync(sizeof(size));
-    }
-    sharpen::FileMemory counterMemory{this->counterFile_->MapMemory(sizeof(size),0)};
-    std::uint64_t *counter{reinterpret_cast<std::uint64_t*>(counterMemory.Get())};
     std::vector<rkv::CompletedMigration> completedMigations;
     for (auto begin = shards.begin(),end = shards.end(); begin != end; ++begin)
     {
@@ -118,7 +109,6 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
             break;
         }
     }
-    std::uint64_t maxId{0};
     for (auto begin = completedMigations.begin(),end = completedMigations.end(); begin != end; ++begin)
     {
         auto ite = this->groups_.find(begin->GetDestination());
@@ -127,8 +117,6 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
             this->CleaupCompletedMigration(*begin);
         }
     }
-    *counter = maxId;
-    counterMemory.FlushAndWait();
 }
 
 std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet)
@@ -226,23 +214,41 @@ std::string rkv::WorkerServer::FormatStorageName(std::uint64_t id)
 
 void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &migration)
 {
-    std::vector<sharpen::ByteBuffer> keys;
     {
-        auto scanner{this->app_->GetScanner(migration.BeginKey(),migration.EndKey())};
-        if(!scanner.IsEmpty())
+        std::unique_lock<sharpen::AsyncMutex> lock{this->migrationLock_};
+        this->counterFile_ = sharpen::MakeFileChannel("./Storage/CompletedCounter.bin",sharpen::FileAccessModel::All,sharpen::FileOpenModel::CreateOrOpen);
+        this->counterFile_->Register(*this->engine_);
+        std::uint64_t size{this->counterFile_->GetFileSize()};
+        if(!size)
         {
-            keys.reserve(Self::maxKeysPerShard_);
-            do
-            {
-                keys.emplace_back(scanner.GetCurrentKey());
-            } while (scanner.Next());
+            this->counterFile_->ZeroMemoryAsync(sizeof(size));
         }
+        sharpen::FileMemory counterMemory{this->counterFile_->MapMemory(sizeof(size),0)};
+        std::uint64_t *counter{reinterpret_cast<std::uint64_t*>(counterMemory.Get())};
+        if(migration.GetId() <= *counter)
+        {
+            return;
+        }
+        std::vector<sharpen::ByteBuffer> keys;
+        {
+            auto scanner{this->app_->GetScanner(migration.BeginKey(),migration.EndKey())};
+            if(!scanner.IsEmpty())
+            {
+                keys.reserve(Self::maxKeysPerShard_);
+                do
+                {
+                    keys.emplace_back(scanner.GetCurrentKey());
+                } while (scanner.Next());
+            }
+        }
+        for(auto begin = keys.begin(),end = keys.end(); begin != end; ++begin)
+        {
+            this->app_->Delete(*begin);
+        }
+        std::printf("[Info]%zu keys have been removed\n",keys.size());   
+        *counter = migration.GetId();
+        counterMemory.FlushAndWait();
     }
-    for(auto begin = keys.begin(),end = keys.end(); begin != end; ++begin)
-    {
-        this->app_->Delete(*begin);
-    }
-    std::printf("[Info]%zu keys have been removed\n",keys.size());   
 }
 
 bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
