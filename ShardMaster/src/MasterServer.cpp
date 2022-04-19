@@ -357,7 +357,7 @@ void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const
         channel->Bind(ep);
         channel->Register(*this->engine_);
         //channel->ConnectAsync(id);
-        bool connected{channel->ConnectWithTimeout(timer,std::chrono::seconds(3),id)};
+        bool connected{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
         if (connected)
         {
             sharpen::ByteBuffer buf;
@@ -514,7 +514,7 @@ void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id,c
         channel->Bind(ep);
         channel->Register(*this->engine_);
         //channel->ConnectAsync(id);
-        bool result{channel->ConnectWithTimeout(timer,std::chrono::seconds(3),id)};
+        bool result{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
         if (result)
         {
             sharpen::ByteBuffer buf;
@@ -643,11 +643,28 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     if(notifyMigration.Exist() && notifyShard)
                     {
                         std::vector<sharpen::IpEndPoint> workers{notifyShard->Workers()};
-                        statusLock.unlock();
-                        std::size_t i{0};
-                        for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
+                        const rkv::Shard *tmp{this->shards_->GetShardPtr(notifyMigration.Get().GetDestination())};
+                        if(tmp)
                         {
-                            this->NotifyMigrationCompleted(*begin,notifyMigration.Get());
+                            rkv::Shard shard{*tmp};
+                            statusLock.unlock();
+                            std::size_t i{0};
+                            for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
+                            {
+                                bool skip{false};
+                                for(auto workerBegin = shard.Workers().begin(),workerEnd = shard.Workers().end(); workerBegin != workerEnd; ++workerBegin)
+                                {
+                                    if(*begin == *workerBegin)
+                                    {
+                                        skip = true;
+                                        break;
+                                    }
+                                }
+                                if(!skip)
+                                {
+                                    this->NotifyMigrationCompleted(*begin,notifyMigration.Get());
+                                }
+                            }
                         }
                     }
                 }

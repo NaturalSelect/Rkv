@@ -34,7 +34,20 @@ namespace rkv
 
         static constexpr std::size_t maxKeysPerShard_{5000};
 
+        static constexpr std::size_t migrationTimeout_{5000};
+
+        static constexpr std::size_t masterTimeout_{5000};
+
         static std::string FormatStorageName(std::uint64_t id);
+
+        static void CancelClient(sharpen::Future<bool> &future,rkv::MasterClient *client)
+        {
+            if (future.Get())
+            {
+                assert(client);
+                client->Cancel();
+            }
+        }
 
         sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> GetShardId(const sharpen::ByteBuffer &key) const noexcept;
 
@@ -45,6 +58,8 @@ namespace rkv
         sharpen::Optional<sharpen::ByteBuffer> ScanKeys(const sharpen::ByteBuffer &beginKey,std::uint64_t count) const;
 
         rkv::AppendEntriesResult ProposeAppendEntries(rkv::RaftGroup &group,std::uint64_t commitIndex);
+
+        std::vector<rkv::Shard> FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet);
 
         void DeriveNewShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
 
@@ -90,6 +105,7 @@ namespace rkv
         {
             for(auto begin = this->groups_.begin(),end = this->groups_.end(); begin != end; ++begin)
             {
+                std::printf("[Info]Starting shard %llu\n",begin->first);
                 begin->second->Start();   
             }
             sharpen::TcpServer::RunAsync();
@@ -100,6 +116,7 @@ namespace rkv
             sharpen::TcpServer::Stop();
             for(auto begin = this->groups_.begin(),end = this->groups_.end(); begin != end; ++begin)
             {
+                std::printf("[Info]Stopping shard %llu\n",begin->first);
                 begin->second->Stop();   
             }
         }

@@ -43,58 +43,40 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     //get migrations
     std::vector<rkv::Migration> migrations;
     std::set<sharpen::ByteBuffer> badShards;
-    this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
+    sharpen::TimerPtr timer = sharpen::MakeTimer(sharpen::EventEngine::GetEngine());
+    sharpen::AwaitableFuture<bool> future;
+    using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
+    future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+    timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+    try
+    {
+        this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+    }
+    catch(const std::exception&)
+    {
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+        throw;   
+    }
+    std::puts("[Info]Reading migrations");
     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
     {
-        sharpen::Optional<rkv::Shard> shard{this->client_->GetShard(begin->GetSource())};
-        if(shard.Exist())
+        if(!this->ExecuteMigrationAndNotify(*begin))
         {
-            bool skip{false};
-            for(auto workerBegin = shard.Get().Workers().begin(),workerEnd = shard.Get().Workers().end(); workerBegin != workerEnd; ++workerBegin)
-            {
-                if(*workerBegin == this->selfId_)
-                {
-                    skip = true;
-                    break;
-                }   
-            }
-            if(!skip)
-            {
-                if(!this->ExecuteMigrationAndNotify(*begin))
-                {
-                    badShards.emplace(begin->BeginKey());
-                }
-            }
+            badShards.emplace(begin->BeginKey());
         }
     }
+    std::printf("[Info]Complete %zu migrations\n",migrations.size());
     //get shards
-    std::vector<rkv::Shard> shards;
-    this->client_->GetShard(std::back_inserter(shards),this->selfId_);
-    for (auto begin = shards.begin(),end = shards.end(); begin != end; ++begin)
-    {
-        if(!badShards.count(begin->BeginKey()))
-        {
-            if(begin->BeginKey().Empty() || this->app_->Exist(begin->BeginKey()) == sharpen::ExistStatus::Exist)
-            {
-                std::unique_ptr<rkv::RaftGroup> group{new rkv::RaftGroup{engine,this->selfId_,rkv::RaftStorage{engine,Self::FormatStorageName(begin->GetId())},this->app_}};
-                if(!group)
-                {
-                    throw std::bad_alloc();
-                }
-                std::uint64_t lastAppiled{group->Raft().GetLastApplied()};
-                for(auto workerBegin = begin->Workers().begin(),workerEnd = begin->Workers().end(); workerBegin != workerEnd; ++workerBegin)
-                {
-                    if(*workerBegin != this->selfId_)
-                    {
-                        rkv::RaftMember member{*workerBegin,engine};
-                        member.SetCurrentIndex(lastAppiled);
-                        group->Raft().Members().emplace(*workerBegin,std::move(member));
-                    }
-                }
-                this->groups_.emplace(begin->GetId(),std::move(group));
-            }
-        }
-    }
+    std::vector<rkv::Shard> shards{this->FlushShard(&badShards)};
     //get completed migrations
     this->counterFile_ = sharpen::MakeFileChannel("./Storage/CompletedCounter.bin",sharpen::FileAccessModel::All,sharpen::FileOpenModel::CreateOrOpen);
     this->counterFile_->Register(engine);
@@ -106,6 +88,35 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     sharpen::FileMemory counterMemory{this->counterFile_->MapMemory(sizeof(size),0)};
     std::uint64_t *counter{reinterpret_cast<std::uint64_t*>(counterMemory.Get())};
     std::vector<rkv::CompletedMigration> completedMigations;
+    for (auto begin = shards.begin(),end = shards.end(); begin != end; ++begin)
+    {
+        future.Reset();
+        future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+        timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+        try
+        {
+            this->client_->GetCompletedMigrations(std::back_inserter(completedMigations),*counter,begin->GetId());
+            if(future.IsPending())
+            {
+                timer->Cancel();
+                future.WaitAsync();
+            }
+        }
+        catch(const std::exception &e)
+        {
+            if (future.IsPending())
+            {
+                timer->Cancel();
+                future.WaitAsync();
+            }
+            else
+            {
+                this->client_->Reset();
+            }
+            std::fprintf(stderr,"[Error]Cannot get completed migrations because %s\n",e.what());
+            break;
+        }
+    }
     std::uint64_t maxId{0};
     for (auto begin = completedMigations.begin(),end = completedMigations.end(); begin != end; ++begin)
     {
@@ -119,9 +130,94 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     counterMemory.FlushAndWait();
 }
 
+std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet)
+{
+    sharpen::TimerPtr timer = sharpen::MakeTimer(sharpen::EventEngine::GetEngine());
+    sharpen::AwaitableFuture<bool> future;
+    using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
+    std::vector<rkv::Shard> shards;
+    try
+    {
+        std::puts("[Info]Reading shards");
+        {
+            std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
+            future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            this->client_->GetShard(std::back_inserter(shards),this->selfId_);
+        }
+        std::puts("[Info]Reading shards done");
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+    }
+    catch(const std::exception &e)
+    {
+        std::fprintf(stderr,"[Error]Cannot reading shards because %s\n",e.what());
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+        else
+        {
+            this->client_->Reset();
+        }
+        throw;
+    }
+    std::puts("[Info]Loading shards");
+    {
+        this->groupLock_.LockWrite();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
+        for (auto begin = shards.begin(),end = shards.end(); begin != end; ++begin)
+        {
+            if(!excludedSet || !excludedSet->count(begin->BeginKey()))
+            {
+                auto ite = this->groups_.find(begin->GetId());
+                if(ite == this->groups_.end())
+                {
+                    if(begin->BeginKey().Empty() || this->app_->Exist(begin->BeginKey()) == sharpen::ExistStatus::Exist)
+                    {
+                        std::unique_ptr<rkv::RaftGroup> group{};
+                        try
+                        {
+                            group.reset(new rkv::RaftGroup{*this->engine_,this->selfId_,rkv::RaftStorage{*this->engine_,Self::FormatStorageName(begin->GetId())},this->app_});
+                        }
+                        catch(const std::exception& e)
+                        {
+                            std::fprintf(stderr,"[Error]Cannot load shard because %s\n",e.what());
+                            throw;
+                        }
+                        if(!group)
+                        {
+                            throw std::bad_alloc();
+                        }
+                        group->Group().Construct(begin->GetId());
+                        std::printf("[Info]Load shard %llu\n",begin->GetId());
+                        std::uint64_t lastAppiled{group->Raft().GetLastApplied()};
+                        for(auto workerBegin = begin->Workers().begin(),workerEnd = begin->Workers().end(); workerBegin != workerEnd; ++workerBegin)
+                        {
+                            if(*workerBegin != this->selfId_)
+                            {
+                                rkv::RaftMember member{*workerBegin,*this->engine_};
+                                member.SetCurrentIndex(lastAppiled);
+                                group->Raft().Members().emplace(*workerBegin,std::move(member));
+                            }
+                        }
+                        this->groups_.emplace(begin->GetId(),std::move(group));
+                    }
+                }
+            }
+        }
+    }
+    std::printf("[Info]Load %zu shards\n",this->groups_.size());
+    return shards;
+}
+
 std::string rkv::WorkerServer::FormatStorageName(std::uint64_t id)
 {
-    std::string str{"./Storage/Raft/"};
+    std::string str{"./Storage/RaftLog"};
     str += std::to_string(id);
     return str;
 }
@@ -143,20 +239,53 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
     for(auto begin = keys.begin(),end = keys.end(); begin != end; ++begin)
     {
         this->app_->Delete(*begin);
-    }   
+    }
+    std::printf("[Info]%zu keys have been removed\n",keys.size());   
 }
 
 bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
 {
+    using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
     sharpen::Optional<rkv::Shard> shard;
+    sharpen::TimerPtr timer = sharpen::MakeTimer(sharpen::EventEngine::GetEngine());
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
-        shard = this->client_->GetShard(migration.GetSource());
+        sharpen::AwaitableFuture<bool> future;
+        future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+        timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+        try
+        {
+            shard = this->client_->GetShard(migration.GetSource());
+            if(!future.IsPending())
+            {
+                this->client_->Reset();
+                return false;
+            }
+            timer->Cancel();
+            future.WaitAsync();
+        }
+        catch(const std::exception&)
+        {
+            if(future.IsPending())
+            {
+                timer->Cancel();
+                future.WaitAsync();
+            }
+            this->client_->Reset();
+            return false;
+        }
     }
     if(shard.Exist())
     {
         if(!shard.Get().Workers().empty())
         {
+            for (auto begin = shard.Get().Workers().begin(),end = shard.Get().Workers().end(); begin != end; ++begin)
+            {
+                if(*begin == this->selfId_)
+                {
+                    return true;
+                }
+            }   
             std::unordered_set<sharpen::IpEndPoint> set;
             std::minstd_rand random{std::random_device{}()};
             std::uniform_int_distribution<std::size_t> distribution{1,shard.Get().Workers().size()};
@@ -173,7 +302,10 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
                     tmp->Register(*this->engine_);
                     try
                     {
-                        tmp->ConnectAsync(id);
+                        if (!tmp->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::migrationTimeout_},id))
+                        {
+                            return false;
+                        }
                         channel = std::move(tmp);
                     }
                     catch(const std::exception&)
@@ -183,13 +315,15 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
                 }
                 if (channel)
                 {
-                    //TODO migrate data
                     sharpen::ByteBuffer buf;
                     rkv::MigrateRequest request;
                     request.BeginKey() = migration.BeginKey();
                     request.EndKey() = migration.EndKey();
                     request.Serialize().StoreTo(buf);
                     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::MigrateRequest,buf.GetSize())};
+                    sharpen::AwaitableFuture<bool> future;
+                    future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+                    timer->WaitAsync(future,std::chrono::milliseconds{Self::migrationTimeout_});
                     try
                     {
                         channel->WriteObjectAsync(header);
@@ -209,10 +343,20 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
                         {
                             this->app_->Put(std::move(begin->first),std::move(begin->second));
                         }
+                        if(future.IsPending())
+                        {
+                            timer->Cancel();
+                            future.WaitAsync();
+                        }
                         return true;   
                     }
                     catch(const std::exception &ignore)
                     {
+                        if(future.IsPending())
+                        {
+                            timer->Cancel();
+                            future.WaitAsync();
+                        }
                         static_cast<void>(ignore);
                     }
                 }
@@ -224,13 +368,41 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
 
 bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migration)
 {
+    
+    using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
     if (this->ExecuteMigration(migration))
     {
         rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
+        sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
         while (result != rkv::CompleteMigrationResult::Appiled)
         {
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
-            result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
+            sharpen::AwaitableFuture<bool> future;
+            future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            try
+            {
+                result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
+                if(future.IsPending())
+                {
+                    timer->Cancel();
+                    future.WaitAsync();
+                }
+            }
+            catch(const std::exception &e)
+            {
+                std::fprintf(stderr,"[Error]Cannot complete migration because %s\n",ee.what());
+                if(future.IsPending())
+                {
+                    timer->Cancel();
+                    future.WaitAsync();
+                }
+                else
+                {
+                    this->client_->Reset();
+                }
+                return false;
+            }
         }
         return true;
     }
@@ -289,6 +461,7 @@ void rkv::WorkerServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
             auto ite = this->groups_.find(request.Group().Get());
             if(ite != this->groups_.end())
             {
+                std::printf("[Info]Channel want to append entires to host(%llu)\n",ite->first);
                 ite->second->DelayCycle();
                 {
                     std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
@@ -322,6 +495,7 @@ void rkv::WorkerServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
             this->groupLock_.LockRead();
             std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
             auto ite = this->groups_.find(request.Group().Get());
+            std::printf("[Info]Channel want to request vote from host(%llu)\n",ite->first);
             if(ite != this->groups_.end())
             {
                 std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
@@ -334,7 +508,7 @@ void rkv::WorkerServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
     response.SetResult(result);
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteRequest,resBuf.GetSize())};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }
@@ -463,7 +637,35 @@ rkv::AppendEntriesResult rkv::WorkerServer::ProposeAppendEntries(rkv::RaftGroup 
 
 void rkv::WorkerServer::DeriveNewShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey)
 {
-    //TODO derive shard
+    sharpen::TimerPtr timer = sharpen::MakeTimer(sharpen::EventEngine::GetEngine());
+    sharpen::AwaitableFuture<bool> future;
+    using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
+    try
+    {
+        std::puts("[Info]Deriving shards");
+        {
+            std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
+            future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
+            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            this->client_->DeriveShard(source,beginKey,endKey);
+        }
+        std::puts("[Info]Deriving shards done");
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+    }
+    catch(const std::exception &e)
+    {
+        std::fprintf(stderr,"[Error]Cannot deriving shards because %s\n",e.what());
+        if(future.IsPending())
+        {
+            timer->Cancel();
+            future.WaitAsync();
+        }
+        throw;
+    }
 }
 
 void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
@@ -639,31 +841,25 @@ void rkv::WorkerServer::OnClearShard(sharpen::INetStreamChannel &channel,const s
 {
     rkv::ClearShardRequest request;
     request.Unserialize().LoadFrom(buf);
-    rkv::ClearShardResponse response;
-    response.SetResult(true);
-    {
-        //TODO
-    }
-    // sharpen::ByteBuffer resBuf;
-    // response.Serialize().StoreTo(resBuf);
-    // rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardResponse,resBuf.GetSize())};
-    // channel.WriteObjectAsync(header);
-    // channel.WriteAsync(resBuf);
+    std::uint64_t source{request.Migration().GetSource()};
+    std::uint64_t destination{request.Migration().GetDestination()};
+    std::printf("[Info]Clearing shard %llu becuase part of %llu move to %llu\n",source,source,destination);
+    this->CleaupCompletedMigration(request.Migration());
 }
 
 void rkv::WorkerServer::OnStartMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
     rkv::StartMigrationRequest request;
     request.Unserialize().LoadFrom(buf);
-    rkv::StartMigrationResponse response;
+    try
     {
-        //TODO
+        this->ExecuteMigrationAndNotify(request.Migration());
     }
-    // response.SetResult(true);
-    // sharpen::ByteBuffer resBuf;
-    // rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::StartMigrationResponse,resBuf.GetSize())};
-    // channel.WriteObjectAsync(header);
-    // channel.WriteAsync(resBuf);
+    catch(const std::exception& e)
+    {
+        std::fprintf(stderr,"[Error]Cannot migrate data because %s\n",e.what());   
+    }
+    this->FlushShard(nullptr);
 }
 
 void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)

@@ -37,6 +37,8 @@ namespace rkv
 
         static constexpr std::size_t reverseLogsCount_{16};
 
+        static constexpr std::size_t notifyTimeout_{3000};
+
         static sharpen::ByteBuffer zeroKey_;
 
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
