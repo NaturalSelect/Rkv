@@ -96,6 +96,7 @@ namespace rkv
         std::map<std::uint64_t,std::unique_ptr<rkv::RaftGroup>> groups_;
         std::map<std::uint64_t,std::size_t> keyCounter_;
         sharpen::FileChannelPtr counterFile_;
+        sharpen::AsyncMutex migrationLock_;
     public:
         WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option);
     
