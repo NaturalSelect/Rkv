@@ -391,7 +391,7 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
             }
             catch(const std::exception &e)
             {
-                std::fprintf(stderr,"[Error]Cannot complete migration because %s\n",ee.what());
+                std::fprintf(stderr,"[Error]Cannot complete migration because %s\n",e.what());
                 if(future.IsPending())
                 {
                     timer->Cancel();
