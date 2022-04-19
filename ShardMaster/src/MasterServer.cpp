@@ -81,27 +81,6 @@ sharpen::IpEndPoint rkv::MasterServer::GetRandomWorkerId() const noexcept
     return this->workers_[index];
 }
 
-bool rkv::MasterServer::TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept
-{
-    sharpen::IpEndPoint ep{0,0};
-    sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
-    channel->Bind(ep);
-    channel->Register(*this->engine_);
-    char ip[21] = {};
-    endpoint.GetAddrString(ip,sizeof(ip));
-    try
-    {
-        channel->ConnectAsync(endpoint);
-    }
-    catch(const std::exception &ignore)
-    {
-        std::printf("[Error]Cannot connect %s:%hu because %s\n",ip,endpoint.GetPort(),ignore.what());
-        static_cast<void>(ignore);
-        return false;
-    }
-    return true;
-}
-
 void rkv::MasterServer::FlushStatus()
 {
     this->shards_->Flush();
@@ -273,7 +252,15 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
         const rkv::Shard *shard{this->shards_->GetShardPtr(request.Key())};
         if(shard)
         {
+            //notify migration
             response.Shard().Construct(*shard);
+            std::vector<rkv::Migration> migrations;
+            this->migrations_->GetMigrations(std::back_inserter(migrations),shard->BeginKey());
+            lock.unlock();
+            for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
+            {
+                this->NotifyStartMigration(begin->Destination(),*begin);
+            }
         }
     }
     sharpen::ByteBuffer resBuf;
@@ -364,18 +351,23 @@ void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const
 {
     try
     {
+        sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
         sharpen::IpEndPoint ep{0,0};
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        channel->ConnectAsync(id);
-        sharpen::ByteBuffer buf;
-        rkv::StartMigrationRequest request;
-        request.Migration() = migration;
-        request.Serialize().StoreTo(buf);
-        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
-        channel->WriteObjectAsync(header);
-        channel->WriteAsync(buf);
+        //channel->ConnectAsync(id);
+        bool connected{channel->ConnectWithTimeout(timer,std::chrono::seconds(3),id)};
+        if (connected)
+        {
+            sharpen::ByteBuffer buf;
+            rkv::StartMigrationRequest request;
+            request.Migration() = migration;
+            request.Serialize().StoreTo(buf);
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
+            channel->WriteObjectAsync(header);
+            channel->WriteAsync(buf);
+        }
     }
     catch(const std::exception &ignore)
     {
@@ -463,6 +455,7 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
         {
             std::vector<rkv::Migration> migrations;
             this->migrations_->GetMigrations(std::back_inserter(migrations),request.BeginKey());
+            statusLock.unlock();
             for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
             {
                 this->NotifyStartMigration(begin->Destination(),*begin);
@@ -515,18 +508,23 @@ void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id,c
 {
     try
     {
+        sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
         sharpen::IpEndPoint ep{0,0};
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        channel->ConnectAsync(id);
-        sharpen::ByteBuffer buf;
-        rkv::ClearShardRequest request;
-        request.Migration() = migration;
-        request.Serialize().StoreTo(buf);
-        rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
-        channel->WriteObjectAsync(header);
-        channel->WriteAsync(buf);
+        //channel->ConnectAsync(id);
+        bool result{channel->ConnectWithTimeout(timer,std::chrono::seconds(3),id)};
+        if (result)
+        {
+            sharpen::ByteBuffer buf;
+            rkv::ClearShardRequest request;
+            request.Migration() = migration;
+            request.Serialize().StoreTo(buf);
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
+            channel->WriteObjectAsync(header);
+            channel->WriteAsync(buf);
+        }
     }
     catch(const std::exception &ignore)
     {

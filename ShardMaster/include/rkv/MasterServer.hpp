@@ -41,8 +41,6 @@ namespace rkv
 
         sharpen::IpEndPoint GetRandomWorkerId() const noexcept;
 
-        bool TryConnect(const sharpen::IpEndPoint &endpoint) const noexcept;
-
         void NotifyMigrationCompleted(const sharpen::IpEndPoint &engpoint,const rkv::CompletedMigration &migration) const noexcept;
 
         void NotifyStartMigration(const sharpen::IpEndPoint &engpoint,const rkv::Migration &migration);
@@ -60,23 +58,15 @@ namespace rkv
         inline std::size_t SelectWorkers(_InsertIterator inserter,std::size_t count) const noexcept
         {
             std::unordered_set<sharpen::IpEndPoint> set{count};
-            std::unordered_set<sharpen::IpEndPoint> badSet;
             do
             {
                 sharpen::IpEndPoint id{this->GetRandomWorkerId()};
                 if(!set.count(id))
                 {
-                    if (this->TryConnect(id))
-                    {
-                        *inserter++ = id;
-                        set.emplace(id);
-                    }
-                    else
-                    {
-                        badSet.emplace(id);
-                    }
+                    *inserter++ = id;
+                    set.emplace(id);
                 }
-            } while (set.size() != count && set.size() + badSet.size() != this->workers_.size());
+            } while (set.size() != count && set.size() != this->workers_.size());
             return set.size();
         }
 
