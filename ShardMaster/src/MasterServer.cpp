@@ -585,9 +585,9 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     //install shard
                     if(migrationsCount == Self::replicationFactor_)
                     {
-                        std::puts("[Info]A new shard has been created");
                         if (!this->shards_->Contain(migrations[0].BeginKey()))
                         {
+                            std::puts("[Info]A new shard has been created");
                             rkv::Shard shard;
                             for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
                             {
@@ -601,19 +601,22 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                     }
                     else if(migrationsCount == 1)
                     {
-                        const rkv::Shard *shard{this->shards_->FindShardPtr(migrations[0].BeginKey())};
-                        if(shard)
+                        if(migrations[0].Destination() == request.Id())
                         {
-                            rkv::CompletedMigration completedMigration;
-                            completedMigration.SetId(this->completedMigrations_->GetNextId());
-                            completedMigration.SetDestination(shard->GetId());
-                            completedMigration.SetSource(migrations[0].GetSource());
-                            completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
-                            completedMigration.EndKey() = std::move(migrations[0].EndKey());
-                            index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
-                            notifyMigration.Construct(std::move(completedMigration));
-                            notifyShard = shard;
-                            indexOffset = 1;
+                            const rkv::Shard *shard{this->shards_->FindShardPtr(migrations[0].BeginKey())};
+                            if(shard)
+                            {
+                                rkv::CompletedMigration completedMigration;
+                                completedMigration.SetId(this->completedMigrations_->GetNextId());
+                                completedMigration.SetDestination(shard->GetId());
+                                completedMigration.SetSource(migrations[0].GetSource());
+                                completedMigration.BeginKey() = std::move(migrations[0].BeginKey());
+                                completedMigration.EndKey() = std::move(migrations[0].EndKey());
+                                index = this->completedMigrations_->GenrateEmplaceLogs(std::back_inserter(logs),&completedMigration,&completedMigration + 1,index,term);
+                                notifyMigration.Construct(std::move(completedMigration));
+                                notifyShard = shard;
+                                indexOffset = 1;
+                            }
                         }
                     }
                     for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
@@ -647,7 +650,6 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         {
                             rkv::Shard shard{*tmp};
                             statusLock.unlock();
-                            std::size_t i{0};
                             for (auto begin = workers.begin(),end = workers.end(); begin != end; ++begin)
                             {
                                 bool skip{false};

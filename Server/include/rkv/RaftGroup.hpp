@@ -33,7 +33,7 @@ namespace rkv
 
         void RequestVoteCallback() noexcept;
 
-        static constexpr std::uint32_t minElectionCycle_{5*1000};
+        static constexpr std::uint32_t minElectionCycle_{6*1000};
         static constexpr std::uint32_t maxElectionCycle_{10*1000};
         static constexpr std::uint32_t appendEntriesCycle_{3*1000};
         static constexpr std::uint32_t electionMaxWaitMs_{1*1000};

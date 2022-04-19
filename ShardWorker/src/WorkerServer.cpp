@@ -752,6 +752,10 @@ void rkv::WorkerServer::DeriveNewShard(std::uint64_t source,const sharpen::ByteB
             timer->Cancel();
             future.WaitAsync();
         }
+        else
+        {
+            this->client_->Reset();
+        }
         throw;
     }
 }
