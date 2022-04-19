@@ -30,6 +30,8 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     ,keyCounter_()
     ,counterFile_(nullptr)
     ,migrationLock_()
+    ,keyCounterLock_()
+    ,started_(false)
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
@@ -77,7 +79,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     }
     std::printf("[Info]Complete %zu migrations\n",migrations.size());
     //get shards
-    std::vector<rkv::Shard> shards{this->FlushShard(&badShards)};
+    std::vector<rkv::Shard> shards{this->FlushShard(&badShards,false)};
     //get completed migrations
     this->counterFile_ = sharpen::MakeFileChannel("./Storage/CompletedCounter.bin",sharpen::FileAccessModel::All,sharpen::FileOpenModel::CreateOrOpen);
     this->counterFile_->Register(*this->engine_);
@@ -133,7 +135,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     }
 }
 
-std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet)
+std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet,bool started)
 {
     sharpen::TimerPtr timer = sharpen::MakeTimer(sharpen::EventEngine::GetEngine());
     sharpen::AwaitableFuture<bool> future;
@@ -208,8 +210,14 @@ std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::By
                                 group->Raft().Members().emplace(*workerBegin,std::move(member));
                             }
                         }
+                        rkv::RaftGroup *groupCopy{group.get()};
                         this->groups_.emplace(begin->GetId(),std::move(group));
                         this->shardMap_.emplace(begin->BeginKey(),begin->GetId());
+                        if(started)
+                        {
+                            std::printf("Start shard %llu\n",begin->GetId());
+                            groupCopy->Start();
+                        }
                     }
                 }
             }
@@ -421,6 +429,7 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
             timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
             try
             {
+                std::printf("[Info]Completing %llu migration\n",migration.GetGroupId());
                 result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
                 if(future.IsPending())
                 {
@@ -457,6 +466,7 @@ void rkv::WorkerServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel,con
     if(request.Group().Exist())
     {
         {
+            std::printf("[Info]Redirect to leader %llu\n",request.Group().Get());
             this->groupLock_.LockRead();
             std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
             auto ite = this->groups_.find(request.Group().Get());
@@ -466,6 +476,7 @@ void rkv::WorkerServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel,con
                 {
                     try
                     {
+                        std::printf("[Info]Got leader %llu\n",request.Group().Get());
                         response.Endpoint() = ite->second->Raft().GetLeaderId();
                         response.SetKnowLeader(true);
                     }
@@ -507,6 +518,10 @@ void rkv::WorkerServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
                     result = ite->second->Raft().AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
                     lastAppiled = ite->second->Raft().GetLastApplied();
                     currentTerm = ite->second->Raft().GetCurrentTerm();
+                    if(result)
+                    {
+                        this->ClearKeyCount(request.Group().Get());
+                    }
                 }
             }
         }
@@ -556,16 +571,9 @@ sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> rkv::WorkerServe
 {
     sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> result;
     auto ite = this->shardMap_.lower_bound(key);
-    if(ite == this->shardMap_.begin())
+    if(ite != this->shardMap_.begin())
     {
-        ite = this->shardMap_.end();
-    }
-    else
-    {
-        ite = sharpen::IteratorBackward(ite,1);
-    }
-    if(ite != this->shardMap_.end())
-    {
+        --ite;
         result.Construct(ite->second,ite->first);
     }
     return result;
@@ -606,23 +614,64 @@ std::uint64_t rkv::WorkerServer::ScanKeyCount(std::uint64_t id,const sharpen::By
             } while (scanner.Next());
         }
     }
+    std::printf("[Info]Scanning %zu keys\n",count);
     return count;
 }
 
 std::uint64_t rkv::WorkerServer::GetKeyCounter(std::uint64_t id,const sharpen::ByteBuffer &beginKey)
 { 
     std::uint64_t count{0};
-    auto ite = this->keyCounter_.find(id);
-    if(ite == this->keyCounter_.end())
+    bool scan{true};
+    {
+        std::unique_lock<sharpen::SpinLock> lock{this->keyCounterLock_};
+        auto ite = this->keyCounter_.find(id);
+        if(ite != this->keyCounter_.end())
+        {
+            scan = false;
+            count = ite->second;
+        }
+    }
+    if(scan)
     {
         count = this->ScanKeyCount(id,beginKey);
-        this->keyCounter_.emplace(id,count);
-    }
-    else
-    {
-        count = ite->second;
+        {
+            std::unique_lock<sharpen::SpinLock> lock{this->keyCounterLock_};
+            auto ite = this->keyCounter_.find(id);
+            if(ite != this->keyCounter_.end())
+            {
+                count = ite->second;
+            }
+            else
+            {
+                this->keyCounter_.emplace(id,count);
+            }
+        }
     }
     return count;
+}
+
+void rkv::WorkerServer::IncreaseKeyCount(std::uint64_t id)
+{
+    {
+        std::unique_lock<sharpen::SpinLock> lock{this->keyCounterLock_};
+        auto ite = this->keyCounter_.find(id);
+        if(ite != this->keyCounter_.end())
+        {
+            ite->second += 1;
+        }
+    }
+}
+
+void rkv::WorkerServer::ClearKeyCount(std::uint64_t id)
+{
+    {
+        std::unique_lock<sharpen::SpinLock> lock{this->keyCounterLock_};
+        auto ite = this->keyCounter_.find(id);
+        if(ite != this->keyCounter_.end())
+        {
+            this->keyCounter_.erase(ite);
+        }
+    }
 }
 
 sharpen::Optional<sharpen::ByteBuffer> rkv::WorkerServer::ScanKeys(const sharpen::ByteBuffer &beginKey,std::uint64_t count) const
@@ -636,7 +685,7 @@ sharpen::Optional<sharpen::ByteBuffer> rkv::WorkerServer::ScanKeys(const sharpen
             do
             {
                 --count;
-            } while (scanner.Next());
+            } while (count && scanner.Next());
             if(!count)
             {
                 key.Construct(scanner.GetCurrentKey());
@@ -726,7 +775,8 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                 {
                     bool hasRoom{true};
                     std::uint64_t counter{this->GetKeyCounter(shard.Get().first,shard.Get().second)};
-                    if(counter == Self::maxKeysPerShard_)
+                    std::printf("[Info]Counter is %llu (%llu)\n",counter,shard.Get().first);
+                    if(counter >= Self::maxKeysPerShard_)
                     {
                         bool adjust{true};
                         sharpen::Optional<sharpen::ByteBuffer> midKey{this->ScanKeys(shard.Get().second,Self::maxKeysPerShard_/2)};
@@ -739,6 +789,7 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                                 std::uint64_t lastId{this->GetShardId(lastKey.Get()).Get().first};
                                 if(midId == lastId && midId == shard.Get().first)
                                 {
+                                    std::puts("[Info]Derive new shard");
                                     this->DeriveNewShard(shard.Get().first,midKey.Get(),lastKey.Get());
                                     adjust = false;
                                     hasRoom = false;
@@ -747,12 +798,14 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                         }
                         if(adjust)
                         {
-                            this->keyCounter_[shard.Get().first] = this->ScanKeyCount(shard.Get().first,shard.Get().second);
+                            std::puts("[Info]Adjusting counter");
+                            this->ClearKeyCount(shard.Get().first);
                         }
                     }
                     if(hasRoom)
                     {
-                        this->keyCounter_[shard.Get().first] += 1;
+                        std::puts("[Info]Ready to put key value pair");
+                        this->IncreaseKeyCount(shard.Get().first);
                         rkv::RaftLog log;
                         log.SetOperation(rkv::RaftLog::Operation::Put);
                         std::uint64_t index{0};
@@ -893,7 +946,7 @@ void rkv::WorkerServer::OnStartMigration(sharpen::INetStreamChannel &channel,con
         {
             if(this->ExecuteMigrationAndNotify(request.Migration()))
             { 
-                this->FlushShard(nullptr);
+                this->FlushShard(nullptr,this->started_.load());
             }
         }
         catch(const std::exception& e)

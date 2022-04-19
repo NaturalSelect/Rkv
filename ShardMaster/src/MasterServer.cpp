@@ -356,7 +356,6 @@ void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        //channel->ConnectAsync(id);
         bool connected{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
         if (connected)
         {
@@ -364,7 +363,7 @@ void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const
             rkv::StartMigrationRequest request;
             request.Migration() = migration;
             request.Serialize().StoreTo(buf);
-            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::ClearShardRequest,buf.GetSize())};
+            rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::StartMigrationRequest,buf.GetSize())};
             channel->WriteObjectAsync(header);
             channel->WriteAsync(buf);
         }
@@ -456,10 +455,10 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
             std::vector<rkv::Migration> migrations;
             this->migrations_->GetMigrations(std::back_inserter(migrations),request.BeginKey());
             statusLock.unlock();
+            std::puts("[Info]Norify workers to migrate data");
             for (auto begin = migrations.begin(),end = migrations.end(); begin != end; ++begin)
             {
                 this->NotifyStartMigration(begin->Destination(),*begin);
-            
             }
         }
     }

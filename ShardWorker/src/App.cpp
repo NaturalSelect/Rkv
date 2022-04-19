@@ -102,9 +102,8 @@ static void Entry()
     catch(const std::exception& e)
     {
         std::fprintf(stderr,"[Error]Server terminated because %s\n",e.what());
-        sharpen::CleanupNetSupport();
-        return;   
     }
+    std::puts("[Info]Server stopped");
     sharpen::CleanupNetSupport();
 }
 

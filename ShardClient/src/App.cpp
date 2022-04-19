@@ -18,6 +18,7 @@
 
 static void Entry()
 {
+    const char *masterName = "./Config/Masters.txt";
     sharpen::MakeDirectory("./Config");
     std::vector<std::string> lines;
     rkv::ReadAllLines(sharpen::EventEngine::GetEngine(),std::back_inserter(lines),"./Config/Servers.txt");
@@ -46,7 +47,7 @@ static void Entry()
         }
     }
     sharpen::StartupNetSupport();
-    rkv::KvClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end()};
+    rkv::KvClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10,0};
     std::puts("[Info]Command list");
     std::puts("\tget <key> - get a value\n"
                 "\tput <key> <value> - put a key value pair\n"

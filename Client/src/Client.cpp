@@ -88,10 +88,38 @@ void rkv::Client::EraseConnection(const sharpen::IpEndPoint &id)
     ite->second.reset();
 }
 
-sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::NetStreamChannelPtr channel,sharpen::Optional<std::uint64_t> group)
+sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::NetStreamChannelPtr channel,std::uint64_t group)
 {
     rkv::LeaderRedirectRequest request;
-    request.Group() = group;
+    request.Group().Construct(group);
+    sharpen::ByteBuffer buf;
+    request.Serialize().StoreTo(buf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,buf.GetSize())};
+    Self::WriteMessage(channel,header,buf);
+    try
+    {
+        Self::ReadMessage(channel,rkv::MessageType::LeaderRedirectResponse,buf);
+    }
+    catch(const std::exception &)
+    {
+        throw std::logic_error("operation has been cancel");
+    }
+    rkv::LeaderRedirectResponse response;
+    response.Unserialize().LoadFrom(buf);
+    if(response.KnowLeader())
+    {
+        char ip[21] = {};
+        response.Endpoint().GetAddrString(ip,sizeof(ip));
+        std::printf("[Info]Got leader id %s:%hu\n",ip,response.Endpoint().GetPort());
+        return response.Endpoint();
+    }
+    std::puts("[Info]Cannot get leader id");
+    return sharpen::EmptyOpt;
+}
+
+sharpen::Optional<sharpen::IpEndPoint> rkv::Client::GetLeaderId(sharpen::NetStreamChannelPtr channel)
+{
+    rkv::LeaderRedirectRequest request;
     sharpen::ByteBuffer buf;
     request.Serialize().StoreTo(buf);
     rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::LeaderRedirectRequest,buf.GetSize())};
@@ -133,7 +161,15 @@ void rkv::Client::FillLeaderId()
     {
         try
         {
-            auto tmp{Self::GetLeaderId(conn,this->group_)};
+            sharpen::Optional<sharpen::IpEndPoint> tmp;
+            if(this->group_.Exist())
+            {
+                tmp =  Self::GetLeaderId(conn,this->group_.Get());
+            }
+            else
+            {
+                tmp = Self::GetLeaderId(conn);
+            }
             if(tmp.Exist())
             {
                 this->leaderId_.Construct(tmp.Get());

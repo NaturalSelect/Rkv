@@ -39,6 +39,7 @@ namespace rkv
             if(this != std::addressof(other))
             {
                 this->id_ = other.id_;
+                this->groupId_ = other.groupId_;
                 this->source_ = other.source_;
                 this->destination_ = std::move(other.destination_);
                 this->beginKey_ = std::move(other.beginKey_);

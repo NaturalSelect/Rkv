@@ -115,17 +115,15 @@ static void Entry()
     sharpen::StartupNetSupport();
     std::puts("[Info]Server started");
     std::puts("[Info]Please use ctrl+c to stop server");
-    rkv::MasterServer server{sharpen::EventEngine::GetEngine(),opt};
-    sharpen::RegisterCtrlHandler(sharpen::CtrlType::Interrupt,std::bind(&StopServer,&server));
     try
     {
+        rkv::MasterServer server{sharpen::EventEngine::GetEngine(),opt};
+        sharpen::RegisterCtrlHandler(sharpen::CtrlType::Interrupt,std::bind(&StopServer,&server));
         server.RunAsync();
     }
     catch(const std::exception& e)
     {
         std::fprintf(stderr,"[Error]Server terminated because %s\n",e.what());
-        sharpen::CleanupNetSupport();
-        return;   
     }
     std::puts("[Info]Server Stopped");
     sharpen::CleanupNetSupport();

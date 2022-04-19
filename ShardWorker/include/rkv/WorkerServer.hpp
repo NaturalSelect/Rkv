@@ -32,7 +32,7 @@ namespace rkv
         using Self = rkv::WorkerServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
-        static constexpr std::size_t maxKeysPerShard_{5000};
+        static constexpr std::size_t maxKeysPerShard_{5}; //5000
 
         static constexpr std::size_t migrationTimeout_{5000};
 
@@ -55,11 +55,15 @@ namespace rkv
 
         std::uint64_t ScanKeyCount(std::uint64_t id,const sharpen::ByteBuffer &beginKey) const;
 
+        void IncreaseKeyCount(std::uint64_t id);
+
+        void ClearKeyCount(std::uint64_t id);
+
         sharpen::Optional<sharpen::ByteBuffer> ScanKeys(const sharpen::ByteBuffer &beginKey,std::uint64_t count) const;
 
         rkv::AppendEntriesResult ProposeAppendEntries(rkv::RaftGroup &group,std::uint64_t commitIndex);
 
-        std::vector<rkv::Shard> FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet);
+        std::vector<rkv::Shard> FlushShard(const std::set<sharpen::ByteBuffer> *excludedSet,bool started);
 
         void DeriveNewShard(std::uint64_t source,const sharpen::ByteBuffer &beginKey,const sharpen::ByteBuffer &endKey);
 
@@ -97,6 +101,8 @@ namespace rkv
         std::map<std::uint64_t,std::size_t> keyCounter_;
         sharpen::FileChannelPtr counterFile_;
         sharpen::AsyncMutex migrationLock_;
+        sharpen::SpinLock keyCounterLock_;
+        std::atomic_bool started_;
     public:
         WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option);
     
@@ -109,11 +115,13 @@ namespace rkv
                 std::printf("[Info]Starting shard %llu\n",begin->first);
                 begin->second->Start();   
             }
+            this->started_.store(true);
             sharpen::TcpServer::RunAsync();
         }
 
         void Stop()
         {
+            this->started_.store(false);
             sharpen::TcpServer::Stop();
             for(auto begin = this->groups_.begin(),end = this->groups_.end(); begin != end; ++begin)
             {

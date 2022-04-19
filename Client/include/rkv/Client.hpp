@@ -26,7 +26,9 @@ namespace rkv
 
         static void ReadMessage(sharpen::NetStreamChannelPtr channel,rkv::MessageType expectedType,sharpen::ByteBuffer &response);
 
-        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel,sharpen::Optional<std::uint64_t> group);
+        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel,std::uint64_t group);
+
+        static sharpen::Optional<sharpen::IpEndPoint> GetLeaderId(sharpen::NetStreamChannelPtr channel);
 
         sharpen::IpEndPoint GetRandomId() const noexcept;
 
