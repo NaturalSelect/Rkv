@@ -123,7 +123,7 @@ static void Entry()
     }
     catch(const std::exception& e)
     {
-        std::fprintf(stderr,"[Error]Cannot start server because %s\n",e.what());
+        std::fprintf(stderr,"[Error]Server terminated because %s\n",e.what());
         sharpen::CleanupNetSupport();
         return;   
     }
