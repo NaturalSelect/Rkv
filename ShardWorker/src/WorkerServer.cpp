@@ -221,14 +221,19 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
         std::uint64_t size{this->counterFile_->GetFileSize()};
         if(!size)
         {
-            this->counterFile_->ZeroMemoryAsync(sizeof(size));
+            this->counterFile_->ZeroMemoryAsync(sizeof(size) + sizeof(bool));
         }
         sharpen::FileMemory counterMemory{this->counterFile_->MapMemory(sizeof(size),0)};
-        std::uint64_t *counter{reinterpret_cast<std::uint64_t*>(counterMemory.Get())};
-        if(migration.GetId() <= *counter)
+        bool *notFirst{reinterpret_cast<bool*>(counterMemory.Get())};
+        char *mem{reinterpret_cast<char*>(counterMemory.Get())};
+        std::uint64_t *counter{reinterpret_cast<std::uint64_t*>(mem + sizeof(bool))};
+        if(*notFirst && migration.GetId() <= *counter)
         {
             return;
         }
+        *counter = migration.GetId();
+        *notFirst = true;
+        counterMemory.FlushAndWait();
         std::vector<sharpen::ByteBuffer> keys;
         {
             auto scanner{this->app_->GetScanner(migration.BeginKey(),migration.EndKey())};
@@ -246,8 +251,6 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
             this->app_->Delete(*begin);
         }
         std::printf("[Info]%zu keys have been removed\n",keys.size());   
-        *counter = migration.GetId();
-        counterMemory.FlushAndWait();
     }
 }
 
