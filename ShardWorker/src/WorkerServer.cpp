@@ -231,6 +231,7 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
         {
             return;
         }
+        //garbage rather than lost
         *counter = migration.GetId();
         *notFirst = true;
         counterMemory.FlushAndWait();
