@@ -20,7 +20,7 @@ namespace rkv
     private:
         using Self = rkv::RaftMember;
 
-        //max append 500 logs to follower once
+        //max append 50 logs to follower once
         static constexpr std::size_t appendLimit_{50};
     
         std::uint64_t currentIndex_;

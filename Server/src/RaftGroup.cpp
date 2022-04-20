@@ -21,7 +21,6 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
     proposal.Callback() = std::bind(&Self::RequestVoteCallback,this);
     sharpen::AwaitableFuture<bool> continuation;
     sharpen::AwaitableFuture<void> finish;
-    //std::puts("[Info]Try to request vote from other members");
     sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::electionMaxWaitMs_},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
     continuation.Await();
     bool result{false};
@@ -39,15 +38,12 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
     }
     if(result)
     {
-        std::printf("[Info]Become leader of term %llu\n",this->raft_.GetCurrentTerm());
+        std::printf("[Info]Become leader of term %llu (%llu)\n",this->raft_.GetCurrentTerm(),this->group_.Exist() ? this->group_.Get():0);
         this->leaderLoop_.Start();
         finish.WaitAsync();
-        //std::puts("[Info]Follower loop terminate");
         return sharpen::TimerLoop::LoopStatus::Terminate;
     }
-    //std::puts("[Info]Election failure");
     finish.WaitAsync();
-    //std::puts("[Info]Follower loop continue");
     return sharpen::TimerLoop::LoopStatus::Continue;
 }
 
@@ -60,17 +56,12 @@ bool rkv::RaftGroup::ProposeAppendEntries()
     proposal.Id() = this->raft_.GetSelfId();
     sharpen::AwaitableFuture<bool> continuation;
     sharpen::AwaitableFuture<void> finish;
-    //std::puts("[Info]Try to append entries to other members");
     sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::appendEntriesMaxWaitMs_},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
     bool result{continuation.Await()};
     if(!result)
     {
         std::fputs("[Error]Append entires to other members failure\n",stderr);
     }
-    // else
-    // {
-    //     std::puts("[Info]Append entires to other members success");
-    // }
     finish.WaitAsync();
     this->raft_.ReactNewTerm(proposal.GetMaxTerm());
     return result;

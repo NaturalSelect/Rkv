@@ -18,7 +18,6 @@
 
 static void Entry()
 {
-    //TODO Client
     const char *masterName = "./Config/Masters.txt";
     sharpen::MakeDirectory("./Config");
     std::vector<std::string> lines;
@@ -48,7 +47,6 @@ static void Entry()
         }
     }
     sharpen::StartupNetSupport();
-    //rkv::WorkerClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10,0};
     rkv::ShardClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10};
     std::puts("[Info]Command list");
     std::puts("\tget <key> - get a value\n"

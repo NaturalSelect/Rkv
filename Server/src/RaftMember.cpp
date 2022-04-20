@@ -80,12 +80,12 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
         response.Unserialize().LoadFrom(buf);
         if(response.Success())
         {
-            //std::printf("[Info]Append entires to %s:%hu current index %llu -> %llu (%llu)\n",ip,this->id_.GetPort(),this->currentIndex_,lastIndex,proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Info]Append entires to %s:%hu current index %llu -> %llu (%llu)\n",ip,this->id_.GetPort(),this->currentIndex_,lastIndex,proposal->Group().Exist() ? proposal->Group().Get():0);
             this->currentIndex_ = lastIndex;
         }
         else
         {
-            //std::fprintf(stderr,"[Error]Fail to append entires to %s:%hu term %llu -> %llu current index %llu -> %llu (%llu)\n",ip,this->id_.GetPort(),request.GetLeaderTerm(),response.GetTerm(),this->currentIndex_,response.GetAppiledIndex(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::fprintf(stderr,"[Error]Fail to append entires to %s:%hu term %llu -> %llu current index %llu -> %llu (%llu)\n",ip,this->id_.GetPort(),request.GetLeaderTerm(),response.GetTerm(),this->currentIndex_,response.GetAppiledIndex(),proposal->Group().Exist() ? proposal->Group().Get():0);
             this->currentIndex_ = response.GetAppiledIndex();
             proposal->SetMaxTerm(response.GetTerm());
             result->Complete(false);
@@ -99,18 +99,17 @@ void rkv::RaftMember::DoProposeAsync(rkv::LogProposal *proposal,sharpen::Future<
         sharpen::ErrorCode errCode{static_cast<sharpen::ErrorCode>(e.code().value())};
         if (errCode == sharpen::ErrorCancel)
         {
-            //std::printf("[Info]Append entires to %s:%hu operation canceled (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Info]Append entires to %s:%hu operation canceled (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
         }
         else
         {
-            //std::printf("[Error]An error occurred during append entires to %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Error]An error occurred during append entires to %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
         }
     }
     catch(const std::exception &e)
     {
-        //std::printf("[Error]An error occurred during append entires to %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
+        std::printf("[Error]An error occurred during append entires to %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
     }
-    //std::printf("[Info]Drop drity channel %s:%hu\n",ip,this->id_.GetPort());
     this->channel_.reset();
     result->Complete(false);
 }
@@ -130,7 +129,6 @@ void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future
         reqeust.SetTerm(proposal->GetTerm());
         reqeust.SetLastIndex(proposal->GetLastIndex());
         reqeust.SetLastTerm(proposal->GetLastTerm());
-        //std::printf("[Info]Ready to get vote from %s:%hu term is %llu (%llu)\n",ip,this->id_.GetPort(),reqeust.GetTerm(),proposal->Group().Exist() ? proposal->Group().Get():0);
         sharpen::ByteBuffer buf;
         reqeust.Serialize().StoreTo(buf);
         rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::VoteRequest,buf.GetSize())};
@@ -155,7 +153,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future
         response.Unserialize().LoadFrom(buf);
         if(response.Success())
         {
-            //std::printf("[Info]Got vote from %s:%hu (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Info]Got vote from %s:%hu (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
             if(proposal->Callback())
             {
                 proposal->Callback()();
@@ -163,7 +161,7 @@ void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future
         }
         else
         {
-            //std::printf("[Info]Cannot get vote from %s:%hu term is %llu (%llu)\n",ip,this->id_.GetPort(),response.GetTerm(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Info]Cannot get vote from %s:%hu term is %llu (%llu)\n",ip,this->id_.GetPort(),response.GetTerm(),proposal->Group().Exist() ? proposal->Group().Get():0);
             proposal->SetMaxTerm(response.GetTerm());
         }
         result->Complete(response.Success());
@@ -174,18 +172,17 @@ void rkv::RaftMember::DoProposeAsync(rkv::VoteProposal *proposal,sharpen::Future
         sharpen::ErrorCode errCode{static_cast<sharpen::ErrorCode>(e.code().value())};
         if (errCode == sharpen::ErrorCancel)
         {
-            //std::printf("[Info]Request vote from %s:%hu operation cancel (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Info]Request vote from %s:%hu operation cancel (%llu)\n",ip,this->id_.GetPort(),proposal->Group().Exist() ? proposal->Group().Get():0);
         }
         else
         {
-            //std::printf("[Error]An error occurred during request vote from %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
+            std::printf("[Error]An error occurred during request vote from %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
         }
     }
     catch(const std::exception &e)
     {
-        //std::printf("[Error]An error occurred during request vote from %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
+        std::printf("[Error]An error occurred during request vote from %s:%hu %s (%llu)\n",ip,this->id_.GetPort(),e.what(),proposal->Group().Exist() ? proposal->Group().Get():0);
     }
-    //std::printf("[Info]Drop drity channel %s:%hu\n",ip,this->id_.GetPort());
     this->channel_.reset();
     result->Complete(false);
 }

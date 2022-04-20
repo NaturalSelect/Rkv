@@ -591,7 +591,7 @@ void rkv::WorkerServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen:
     rkv::GetRequest request;
     request.Unserialize().LoadFrom(buf);
     rkv::GetResponse response;
-    sharpen::Optional<sharpen::ByteBuffer> val{this->app_->Get(request.Key())};
+    sharpen::Optional<sharpen::ByteBuffer> val{this->app_->TryGet(request.Key())};
     if(val.Exist())
     {
         response.Value() = val.Get();
