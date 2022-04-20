@@ -1,2 +1,2 @@
 # Rkv
-A simple key value server
+A simple key value storage system
