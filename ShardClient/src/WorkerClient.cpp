@@ -1,8 +1,19 @@
-#include <rkv/KvClient.hpp>
+#include <rkv/WorkerClient.hpp>
 
 #include <unordered_set>
 
-sharpen::ByteBuffer rkv::KvClient::GetValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
+std::uint64_t rkv::WorkerClient::GetVersion(sharpen::NetStreamChannelPtr channel)
+{
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetVersionRequest,0)};
+    Self::WriteMessage(channel,header);
+    sharpen::ByteBuffer buf;
+    rkv::GetVersionResponse response;
+    Self::ReadMessage(channel,rkv::MessageType::GetVersionResponse,buf);
+    response.Unserialize().LoadFrom(buf);
+    return response.GetVersion();
+}
+
+sharpen::ByteBuffer rkv::WorkerClient::GetValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
 {
     rkv::GetRequest request;
     request.Key() = std::move(key);
@@ -16,9 +27,10 @@ sharpen::ByteBuffer rkv::KvClient::GetValue(sharpen::NetStreamChannelPtr channel
     return response.Value();
 }
 
-rkv::MotifyResult rkv::KvClient::PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value)
+rkv::MotifyResult rkv::WorkerClient::PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value,std::uint64_t version)
 {
     rkv::PutRequest request;
+    request.SetVersion(version);
     request.Key() = std::move(key);
     request.Value() = std::move(value);
     sharpen::ByteBuffer buf;
@@ -31,9 +43,10 @@ rkv::MotifyResult rkv::KvClient::PutKeyValue(sharpen::NetStreamChannelPtr channe
     return response.GetResult();
 }
 
-rkv::MotifyResult rkv::KvClient::DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key)
+rkv::MotifyResult rkv::WorkerClient::DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,std::uint64_t version)
 {
     rkv::DeleteRequest request;
+    request.SetVersion(version);
     request.Key() = std::move(key);
     sharpen::ByteBuffer buf;
     request.Serialize().StoreTo(buf);
@@ -45,7 +58,7 @@ rkv::MotifyResult rkv::KvClient::DeleteKey(sharpen::NetStreamChannelPtr channel,
     return response.GetResult();
 }
 
-sharpen::Optional<sharpen::ByteBuffer> rkv::KvClient::Get(sharpen::ByteBuffer key,rkv::GetPolicy policy)
+sharpen::Optional<sharpen::ByteBuffer> rkv::WorkerClient::Get(sharpen::ByteBuffer key,rkv::GetPolicy policy)
 {
     char ip[21] ={};
     sharpen::NetStreamChannelPtr conn{nullptr};
@@ -110,58 +123,62 @@ sharpen::Optional<sharpen::ByteBuffer> rkv::KvClient::Get(sharpen::ByteBuffer ke
     return val;
 }
 
-rkv::MotifyResult rkv::KvClient::Put(sharpen::ByteBuffer key,sharpen::ByteBuffer value)
+void rkv::WorkerClient::FillLeaderVersion()
+{
+    this->FillLeaderId();
+    if(!this->versionOfLeader_)
+    {
+        sharpen::NetStreamChannelPtr conn = this->GetConnection(this->leaderId_.Get());
+        this->versionOfLeader_ = Self::GetVersion(conn);
+    }
+}
+
+rkv::MotifyResult rkv::WorkerClient::Put(sharpen::ByteBuffer key,sharpen::ByteBuffer value)
 {
     rkv::MotifyResult result{rkv::MotifyResult::NotCommit};
-    while (result == rkv::MotifyResult::NotCommit)
+    try
     {
-        try
+        this->FillLeaderVersion();
+        sharpen::NetStreamChannelPtr conn = this->GetConnection(this->leaderId_.Get());
+        result = Self::PutKeyValue(conn,key,value,this->versionOfLeader_);
+    }
+    catch(const std::exception &e)
+    {
+        std::fprintf(stderr,"[Error]A error has occured %s\n",e.what());
+    }
+    if(result == rkv::MotifyResult::NotCommit)
+    {
+        if(this->leaderId_.Exist())
         {
-            this->FillLeaderId();
-            sharpen::NetStreamChannelPtr conn = this->GetConnection(this->leaderId_.Get());
-            result = Self::PutKeyValue(conn,key,value);
-            if(result == rkv::MotifyResult::NotCommit)
-            {
-                this->leaderId_.Reset();
-            }
+            this->EraseConnection(this->leaderId_.Get());
+            this->leaderId_.Reset();
         }
-        catch(const std::exception&)
-        {
-            if(this->leaderId_.Exist())
-            {
-                this->EraseConnection(this->leaderId_.Get());
-                this->leaderId_.Reset();
-            }
-            break;
-        }
+        this->versionOfLeader_ = 0;
     }
     return result;
 }
 
-rkv::MotifyResult rkv::KvClient::Delete(sharpen::ByteBuffer key)
+rkv::MotifyResult rkv::WorkerClient::Delete(sharpen::ByteBuffer key)
 {
     rkv::MotifyResult result{rkv::MotifyResult::NotCommit};
-    while (result == rkv::MotifyResult::NotCommit)
+    try
     {
-        try
+        this->FillLeaderVersion();
+        sharpen::NetStreamChannelPtr conn = this->GetConnection(this->leaderId_.Get());
+        result = Self::DeleteKey(conn,key,this->versionOfLeader_);
+    }
+    catch(const std::exception &e)
+    {
+        std::fprintf(stderr,"[Error]A error has occured %s\n",e.what());
+    }
+    if(result == rkv::MotifyResult::NotCommit)
+    {
+        if(this->leaderId_.Exist())
         {
-            this->FillLeaderId();
-            sharpen::NetStreamChannelPtr conn = this->GetConnection(this->leaderId_.Get());
-            result = Self::DeleteKey(conn,key);
-            if(result == rkv::MotifyResult::NotCommit)
-            {
-                this->leaderId_.Reset();
-            }
+            this->EraseConnection(this->leaderId_.Get());
+            this->leaderId_.Reset();
         }
-        catch(const std::exception&)
-        {
-            if(this->leaderId_.Exist())
-            {
-                this->EraseConnection(this->leaderId_.Get());
-                this->leaderId_.Reset();
-            }
-            break;
-        }
+        this->versionOfLeader_ = 0;
     }
     return result;
 }

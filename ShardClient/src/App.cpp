@@ -13,8 +13,8 @@
 #include <rkv/DeleteResponse.hpp>
 #include <rkv/LeaderRedirectResponse.hpp>
 #include <rkv/MessageHeader.hpp>
-#include <rkv/KvClient.hpp>
 #include <rkv/Utility.hpp>
+#include <rkv/ShardClient.hpp>
 
 static void Entry()
 {
@@ -22,14 +22,14 @@ static void Entry()
     const char *masterName = "./Config/Masters.txt";
     sharpen::MakeDirectory("./Config");
     std::vector<std::string> lines;
-    rkv::ReadAllLines(sharpen::EventEngine::GetEngine(),std::back_inserter(lines),"./Config/Servers.txt");
+    rkv::ReadAllLines(sharpen::EventEngine::GetEngine(),std::back_inserter(lines),masterName);
     if(lines.empty())
     {
-        std::fputs("[Error]Please edit ./Config/Servers.txt to set server id(ip port)\n",stderr);
+        std::fprintf(stderr,"[Error]Please edit %s to set server id(ip port)\n",masterName);
         return;
     }
     std::vector<sharpen::IpEndPoint> ids;
-    std::puts("[Info]Server configurations are");
+    std::puts("[Info]Master configurations are");
     for (auto begin = lines.begin(),end = lines.end(); begin != end; ++begin)
     {
         std::printf("\t%s\n",begin->c_str());
@@ -48,11 +48,13 @@ static void Entry()
         }
     }
     sharpen::StartupNetSupport();
-    rkv::KvClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10,0};
+    //rkv::WorkerClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10,0};
+    rkv::ShardClient client{sharpen::EventEngine::GetEngine(),ids.begin(),ids.end(),std::chrono::seconds(3),10};
     std::puts("[Info]Command list");
     std::puts("\tget <key> - get a value\n"
                 "\tput <key> <value> - put a key value pair\n"
                 "\tdelete <key> - delete a key value pair\n"
+                "\tflush - flush cache\n"
                 "\tquit - exist client");
     std::puts("[Info]Enter interactive model");
     sharpen::InputPipeChannelPtr input = sharpen::MakeStdinPipe();
@@ -63,6 +65,11 @@ static void Entry()
         if(line == "quit")
         {
             break;
+        }
+        else if(line == "flush")
+        {
+            client.ClearCache();
+            continue;
         }
         char commandBuf[7] = {};
         int r{std::sscanf(line.data(),"%6s",commandBuf)};

@@ -6,7 +6,7 @@ set(SHARED_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/Shared/include")
 
 set(CLIENT_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/Client/include")
 
-set(MASTERCLIENT_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/ShardClient/include")
+set(MASTERCLIENT_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/ShardMasterClient/include")
 
 set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/ShardClient/include")
 
@@ -18,4 +18,4 @@ file(GLOB_RECURSE src "${PROJECT_SOURCE_DIR}/ShardClient" "*.h" "*.hpp" "*.cpp" 
 
 add_executable(RkvShardClient ${src} ${header})
 
-target_link_libraries(RkvShardClient sharpen::sharpen RkvShared RkvClient)
+target_link_libraries(RkvShardClient sharpen::sharpen RkvShared RkvClient RkvMasterClient)

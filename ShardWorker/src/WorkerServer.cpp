@@ -591,10 +591,14 @@ void rkv::WorkerServer::OnGet(sharpen::INetStreamChannel &channel,const sharpen:
     rkv::GetRequest request;
     request.Unserialize().LoadFrom(buf);
     rkv::GetResponse response;
-    response.Value() = this->app_->Get(request.Key());
+    sharpen::Optional<sharpen::ByteBuffer> val{this->app_->Get(request.Key())};
+    if(val.Exist())
+    {
+        response.Value() = val.Get();
+    }
     sharpen::ByteBuffer resBuf;
     response.Serialize().StoreTo(resBuf);
-    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetRequest,resBuf.GetSize())};
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetResponse,resBuf.GetSize())};
     channel.WriteObjectAsync(header);
     channel.WriteAsync(resBuf);
 }

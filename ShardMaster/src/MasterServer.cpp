@@ -512,7 +512,6 @@ void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id,c
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        //channel->ConnectAsync(id);
         bool result{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
         if (result)
         {

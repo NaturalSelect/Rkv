@@ -19,32 +19,37 @@
 #include <rkv/MessageHeader.hpp>
 #include <rkv/GetPolicy.hpp>
 #include <rkv/Client.hpp>
+#include <rkv/GetVersionResponse.hpp>
 
 namespace rkv
 {
-    class KvClient:public rkv::Client
+    class WorkerClient:public rkv::Client
     {
     private:
-        using Self = rkv::KvClient;
+        using Self = rkv::WorkerClient;
+
+        static std::uint64_t GetVersion(sharpen::NetStreamChannelPtr channel);
 
         static sharpen::ByteBuffer GetValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key);
 
-        static rkv::MotifyResult PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value);
+        static rkv::MotifyResult PutKeyValue(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,sharpen::ByteBuffer value,std::uint64_t version);
     
-        static rkv::MotifyResult DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key);
+        static rkv::MotifyResult DeleteKey(sharpen::NetStreamChannelPtr channel,sharpen::ByteBuffer key,std::uint64_t version);
 
-        static constexpr std::uint32_t waitElectionMs_{5*1000};
-        static constexpr std::size_t maxWaitElectionCount_{10};
+        void FillLeaderVersion();
+
+        std::uint64_t versionOfLeader_;
     public:
     
         template<typename _Iterator,typename _Rep,typename _Period,typename _Check = decltype(std::declval<sharpen::IpEndPoint&>() = *std::declval<_Iterator&>()++)>
-        KvClient(sharpen::EventEngine &engine,_Iterator begin,_Iterator end,const std::chrono::duration<_Rep,_Period> &restoreTimeout,std::size_t maxTimeoutCount,std::uint64_t group)
+        WorkerClient(sharpen::EventEngine &engine,_Iterator begin,_Iterator end,const std::chrono::duration<_Rep,_Period> &restoreTimeout,std::size_t maxTimeoutCount,std::uint64_t group)
             :Client(engine,begin,end,restoreTimeout,maxTimeoutCount)
+            ,versionOfLeader_(0)
         {
             this->Group().Construct(group);
         }
     
-        KvClient(Self &&other) noexcept = default;
+        WorkerClient(Self &&other) noexcept = default;
     
         inline Self &operator=(Self &&other) noexcept
         {
@@ -55,7 +60,7 @@ namespace rkv
             return *this;
         }
     
-        ~KvClient() noexcept = default;
+        ~WorkerClient() noexcept = default;
     
         inline const Self &Const() const noexcept
         {
