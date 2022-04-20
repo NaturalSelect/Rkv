@@ -215,7 +215,7 @@ std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::By
                         this->shardMap_.emplace(begin->BeginKey(),begin->GetId());
                         if(started)
                         {
-                            std::printf("Start shard %llu\n",begin->GetId());
+                            std::printf("[Info]Start shard %llu\n",begin->GetId());
                             groupCopy->Start();
                         }
                     }
