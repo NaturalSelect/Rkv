@@ -776,77 +776,80 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
     {
         this->groupLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
-        sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> shard{this->GetShardId(request.Key())};
-        if(shard.Exist())
+        if(request.GetVersion() == this->version_)
         {
-            auto ite = this->groups_.find(shard.Get().first);
-            if(ite != this->groups_.end())
+            sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> shard{this->GetShardId(request.Key())};
+            if(shard.Exist())
             {
-                if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
+                auto ite = this->groups_.find(shard.Get().first);
+                if(ite != this->groups_.end())
                 {
-                    bool hasRoom{true};
-                    std::uint64_t counter{this->GetKeyCounter(shard.Get().first,shard.Get().second)};
-                    std::printf("[Info]Counter is %llu (%llu)\n",counter,shard.Get().first);
-                    if(counter >= Self::maxKeysPerShard_)
+                    if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
                     {
-                        bool adjust{true};
-                        sharpen::Optional<sharpen::ByteBuffer> midKey{this->ScanKeys(shard.Get().second,Self::maxKeysPerShard_/2)};
-                        if(midKey.Exist())
+                        bool hasRoom{true};
+                        std::uint64_t counter{this->GetKeyCounter(shard.Get().first,shard.Get().second)};
+                        std::printf("[Info]Counter is %llu (%llu)\n",counter,shard.Get().first);
+                        if(counter >= Self::maxKeysPerShard_)
                         {
-                            sharpen::Optional<sharpen::ByteBuffer> lastKey{this->ScanKeys(midKey.Get(),Self::maxKeysPerShard_/2)};
-                            if(lastKey.Exist())
+                            bool adjust{true};
+                            sharpen::Optional<sharpen::ByteBuffer> midKey{this->ScanKeys(shard.Get().second,Self::maxKeysPerShard_/2)};
+                            if(midKey.Exist())
                             {
-                                std::uint64_t midId{this->GetShardId(midKey.Get()).Get().first};
-                                std::uint64_t lastId{this->GetShardId(lastKey.Get()).Get().first};
-                                if(midId == lastId && midId == shard.Get().first)
+                                sharpen::Optional<sharpen::ByteBuffer> lastKey{this->ScanKeys(midKey.Get(),Self::maxKeysPerShard_/2)};
+                                if(lastKey.Exist())
                                 {
-                                    std::puts("[Info]Derive new shard");
-                                    this->DeriveNewShard(shard.Get().first,midKey.Get(),lastKey.Get());
-                                    adjust = false;
-                                    hasRoom = false;
+                                    std::uint64_t midId{this->GetShardId(midKey.Get()).Get().first};
+                                    std::uint64_t lastId{this->GetShardId(lastKey.Get()).Get().first};
+                                    if(midId == lastId && midId == shard.Get().first)
+                                    {
+                                        std::puts("[Info]Derive new shard");
+                                        this->DeriveNewShard(shard.Get().first,midKey.Get(),lastKey.Get());
+                                        adjust = false;
+                                        hasRoom = false;
+                                    }
                                 }
                             }
-                        }
-                        if(adjust)
-                        {
-                            std::puts("[Info]Adjusting counter");
-                            this->ClearKeyCount(shard.Get().first);
-                        }
-                    }
-                    if(hasRoom)
-                    {
-                        std::puts("[Info]Ready to put key value pair");
-                        this->IncreaseKeyCount(shard.Get().first);
-                        rkv::RaftLog log;
-                        log.SetOperation(rkv::RaftLog::Operation::Put);
-                        std::uint64_t index{0};
-                        std::uint64_t term{0};
-                        {
-                            ite->second->DelayCycle();
-                            std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
-                            if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
+                            if(adjust)
                             {
-                                index = ite->second->Raft().GetLastIndex() + 1;
-                                term = ite->second->Raft().GetCurrentTerm();
-                                rkv::RaftLog log;
-                                log.SetOperation(rkv::RaftLog::Operation::Put);
-                                log.SetIndex(index);
-                                log.SetTerm(term);
-                                log.Key() = std::move(request.Key());
-                                log.Value() = std::move(request.Value());
-                                ite->second->Raft().AppendLog(std::move(log));
-                                rkv::AppendEntriesResult result{this->ProposeAppendEntries(*ite->second,index)};
-                                switch (result)
+                                std::puts("[Info]Adjusting counter");
+                                this->ClearKeyCount(shard.Get().first);
+                            }
+                        }
+                        if(hasRoom)
+                        {
+                            std::puts("[Info]Ready to put key value pair");
+                            this->IncreaseKeyCount(shard.Get().first);
+                            rkv::RaftLog log;
+                            log.SetOperation(rkv::RaftLog::Operation::Put);
+                            std::uint64_t index{0};
+                            std::uint64_t term{0};
+                            {
+                                ite->second->DelayCycle();
+                                std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
+                                if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
                                 {
-                                case rkv::AppendEntriesResult::NotCommit:
-                                    response.SetResult(rkv::MotifyResult::NotCommit);
-                                    break;
-                                case rkv::AppendEntriesResult::Commited:
-                                    response.SetResult(rkv::MotifyResult::Commited);
-                                    break;
-                                case rkv::AppendEntriesResult::Appiled:
-                                    response.SetResult(rkv::MotifyResult::Appiled);
-                                    break;
+                                    index = ite->second->Raft().GetLastIndex() + 1;
+                                    term = ite->second->Raft().GetCurrentTerm();
+                                    rkv::RaftLog log;
+                                    log.SetOperation(rkv::RaftLog::Operation::Put);
+                                    log.SetIndex(index);
+                                    log.SetTerm(term);
+                                    log.Key() = std::move(request.Key());
+                                    log.Value() = std::move(request.Value());
+                                    ite->second->Raft().AppendLog(std::move(log));
+                                    rkv::AppendEntriesResult result{this->ProposeAppendEntries(*ite->second,index)};
+                                    switch (result)
+                                    {
+                                    case rkv::AppendEntriesResult::NotCommit:
+                                        response.SetResult(rkv::MotifyResult::NotCommit);
+                                        break;
+                                    case rkv::AppendEntriesResult::Commited:
+                                        response.SetResult(rkv::MotifyResult::Commited);
+                                        break;
+                                    case rkv::AppendEntriesResult::Appiled:
+                                        response.SetResult(rkv::MotifyResult::Appiled);
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -871,38 +874,41 @@ void rkv::WorkerServer::OnDelete(sharpen::INetStreamChannel &channel,const sharp
     {
         this->groupLock_.LockRead();
         std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
-        sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> shard{this->GetShardId(request.Key())};
-        if(shard.Exist())
+        if(request.GetVersion() == this->version_)
         {
-            auto ite = this->groups_.find(shard.Get().first);
-            if(ite != this->groups_.end())
+            sharpen::Optional<std::pair<std::uint64_t,sharpen::ByteBuffer>> shard{this->GetShardId(request.Key())};
+            if(shard.Exist())
             {
-                ite->second->DelayCycle();
-                std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
-                std::uint64_t index{0};
-                std::uint64_t term{0};
-                if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
+                auto ite = this->groups_.find(shard.Get().first);
+                if(ite != this->groups_.end())
                 {
-                    rkv::RaftLog log;
-                    log.SetOperation(rkv::RaftLog::Operation::Delete);
-                    index = ite->second->Raft().GetLastIndex() + 1;
-                    term = ite->second->Raft().GetCurrentTerm();
-                    log.SetIndex(index);
-                    log.SetTerm(term);
-                    log.Key() = std::move(request.Key());
-                    ite->second->Raft().AppendLog(std::move(log));
-                    rkv::AppendEntriesResult result{this->ProposeAppendEntries(*ite->second,index)};
-                    switch (result)
+                    ite->second->DelayCycle();
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
+                    std::uint64_t index{0};
+                    std::uint64_t term{0};
+                    if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
                     {
-                    case rkv::AppendEntriesResult::NotCommit:
-                        response.SetResult(rkv::MotifyResult::NotCommit);
-                        break;
-                    case rkv::AppendEntriesResult::Commited:
-                        response.SetResult(rkv::MotifyResult::Commited);
-                        break;
-                    case rkv::AppendEntriesResult::Appiled:
-                        response.SetResult(rkv::MotifyResult::Appiled);
-                        break;
+                        rkv::RaftLog log;
+                        log.SetOperation(rkv::RaftLog::Operation::Delete);
+                        index = ite->second->Raft().GetLastIndex() + 1;
+                        term = ite->second->Raft().GetCurrentTerm();
+                        log.SetIndex(index);
+                        log.SetTerm(term);
+                        log.Key() = std::move(request.Key());
+                        ite->second->Raft().AppendLog(std::move(log));
+                        rkv::AppendEntriesResult result{this->ProposeAppendEntries(*ite->second,index)};
+                        switch (result)
+                        {
+                        case rkv::AppendEntriesResult::NotCommit:
+                            response.SetResult(rkv::MotifyResult::NotCommit);
+                            break;
+                        case rkv::AppendEntriesResult::Commited:
+                            response.SetResult(rkv::MotifyResult::Commited);
+                            break;
+                        case rkv::AppendEntriesResult::Appiled:
+                            response.SetResult(rkv::MotifyResult::Appiled);
+                            break;
+                        }
                     }
                 }
             }

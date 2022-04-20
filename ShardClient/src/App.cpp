@@ -18,6 +18,7 @@
 
 static void Entry()
 {
+    //TODO Client
     const char *masterName = "./Config/Masters.txt";
     sharpen::MakeDirectory("./Config");
     std::vector<std::string> lines;
