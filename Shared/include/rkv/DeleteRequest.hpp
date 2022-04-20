@@ -14,17 +14,20 @@ namespace rkv
     private:
         using Self = DeleteRequest;
     
+        std::uint64_t version_;
         sharpen::ByteBuffer key_;
     public:
     
         DeleteRequest() = default;
 
         explicit DeleteRequest(sharpen::ByteBuffer key)
-            :key_(std::move(key))
+            :version_(0)
+            ,key_(std::move(key))
         {}
 
         explicit DeleteRequest(const std::string &key)
-            :key_()
+            :version_(0)
+            ,key_()
         {
             if(!key.empty())
             {
@@ -48,6 +51,7 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
+                this->version_ = other.version_;
                 this->key_ = std::move(other.key_);
             }
             return *this;
@@ -70,6 +74,16 @@ namespace rkv
         std::size_t LoadFrom(const char *data,std::size_t size);
 
         std::size_t UnsafeStoreTo(char *data) const noexcept;
+
+        inline std::uint64_t GetVersion() const noexcept
+        {
+            return this->version_;
+        }
+
+        inline void SetVersion(std::uint64_t version) noexcept
+        {
+            this->version_ = version;
+        }
     };
 }
 

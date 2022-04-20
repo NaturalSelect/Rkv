@@ -11,14 +11,16 @@ namespace rkv
     {
     private:
         using Self = rkv::PutRequest;
-    
+
+        std::uint64_t version_;
         sharpen::ByteBuffer key_;
         sharpen::ByteBuffer value_;
     public:
         PutRequest() = default;
 
         PutRequest(sharpen::ByteBuffer key,sharpen::ByteBuffer value)
-            :key_(std::move(key))
+            :version_(0)
+            ,key_(std::move(key))
             ,value_(std::move(value))
         {}
     
@@ -37,6 +39,7 @@ namespace rkv
         {
             if(this != std::addressof(other))
             {
+                this->version_ = other.version_;
                 this->key_ = std::move(other.key_);
                 this->value_ = std::move(other.value_);
             }
@@ -69,6 +72,16 @@ namespace rkv
         inline const sharpen::ByteBuffer &Value() const noexcept
         {
             return this->value_;
+        }
+
+        inline std::uint64_t GetVersion() const noexcept
+        {
+            return this->version_;
+        }
+
+        inline void SetVersion(std::uint64_t version) noexcept
+        {
+            this->version_ = version;
         }
     };
 }

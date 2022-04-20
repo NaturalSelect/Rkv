@@ -19,6 +19,7 @@
 #include <rkv/ClearShardResponse.hpp>
 #include <rkv/StartMigrationRequest.hpp>
 #include <rkv/StartMigrationResponse.hpp>
+#include <rkv/GetVersionResponse.hpp>
 
 rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option)
     :TcpServer(sharpen::AddressFamily::Ip,option.BindEndpoint(),engine)
@@ -32,6 +33,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     ,migrationLock_()
     ,keyCounterLock_()
     ,started_(false)
+    ,version_(1)
 {
     //make directories
     sharpen::MakeDirectory("./Storage");
@@ -236,6 +238,11 @@ std::string rkv::WorkerServer::FormatStorageName(std::uint64_t id)
 
 void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &migration)
 {
+    {
+        this->groupLock_.LockWrite();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
+        this->version_ += 1;
+    }
     {
         std::unique_lock<sharpen::AsyncMutex> lock{this->migrationLock_};
         sharpen::FileMemory counterMemory{this->counterFile_->MapMemory(sizeof(std::uint64_t) + sizeof(bool),0)};
@@ -960,6 +967,21 @@ void rkv::WorkerServer::OnStartMigration(sharpen::INetStreamChannel &channel,con
     }
 }
 
+void rkv::WorkerServer::OnGetVersion(sharpen::INetStreamChannel &channel)
+{
+    rkv::GetVersionResponse response;
+    {
+        this->groupLock_.LockRead();
+        std::unique_lock<sharpen::AsyncReadWriteLock> lock{this->groupLock_,std::adopt_lock};
+        response.SetVersion(this->version_);
+    }
+    sharpen::ByteBuffer resBuf;
+    response.Serialize().StoreTo(resBuf);
+    rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::GetVersionResponse,resBuf.GetSize())};
+    channel.WriteObjectAsync(header);
+    channel.WriteAsync(resBuf);
+}
+
 void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
 {
     try
@@ -979,6 +1001,11 @@ void rkv::WorkerServer::OnNewChannel(sharpen::NetStreamChannelPtr channel)
             }
             std::printf("[Info]Receive a new message from %s:%hu type is %llu size is %llu\n",ip,ep.GetPort(),header.type_,header.size_);
             rkv::MessageType type{rkv::GetMessageType(header)};
+            if(type == rkv::MessageType::GetVersionRequest)
+            {
+                this->OnGetVersion(*channel);
+                continue;
+            }
             sharpen::ByteBuffer buf{sharpen::IntCast<std::size_t>(header.size_)};
             sz = channel->ReadFixedAsync(buf);
             if(sz != buf.GetSize())

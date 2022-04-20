@@ -91,6 +91,8 @@ namespace rkv
 
         void OnStartMigration(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf);
 
+        void OnGetVersion(sharpen::INetStreamChannel &channel);
+
         sharpen::IpEndPoint selfId_;
         std::shared_ptr<rkv::KeyValueService> app_;
         sharpen::AsyncMutex clientLock_;
@@ -103,6 +105,7 @@ namespace rkv
         sharpen::AsyncMutex migrationLock_;
         sharpen::SpinLock keyCounterLock_;
         std::atomic_bool started_;
+        std::uint64_t version_;
     public:
         WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerServerOption &option);
     
