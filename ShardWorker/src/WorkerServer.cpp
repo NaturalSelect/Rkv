@@ -531,6 +531,14 @@ void rkv::WorkerServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
                     }
                 }
             }
+            else
+            {
+                groupLock.unlock();
+                {
+                    std::unique_lock<sharpen::AsyncMutex> migrationLock{this->migrationLock_};
+                    this->FlushShard(nullptr,this->started_.load());
+                }
+            }
         }
     }
     response.SetResult(result);
@@ -556,12 +564,20 @@ void rkv::WorkerServer::OnRequestVote(sharpen::INetStreamChannel &channel,const 
             this->groupLock_.LockRead();
             std::unique_lock<sharpen::AsyncReadWriteLock> groupLock{this->groupLock_,std::adopt_lock};
             auto ite = this->groups_.find(request.Group().Get());
-            std::printf("[Info]Channel want to request vote from host(%llu)\n",ite->first);
             if(ite != this->groups_.end())
             {
+                std::printf("[Info]Channel want to request vote from host(%llu)\n",ite->first);
                 std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
                 result = ite->second->Raft().RequestVote(request.GetTerm(),request.Id(),request.GetLastIndex(),request.GetLastTerm());
                 term = ite->second->Raft().GetCurrentTerm();
+            }
+            else
+            {
+                groupLock.unlock();
+                {
+                    std::unique_lock<sharpen::AsyncMutex> migrationLock{this->migrationLock_};
+                    this->FlushShard(nullptr,this->started_.load());
+                }
             }
         }
     }
