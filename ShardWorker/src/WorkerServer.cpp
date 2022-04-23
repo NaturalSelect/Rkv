@@ -459,7 +459,7 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
                 return false;
             }
         }
-        return true;
+        return result == rkv::CompleteMigrationResult::Appiled;
     }
     return false;
 }
