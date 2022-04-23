@@ -428,7 +428,6 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
     {
         rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
         sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
-        while (result != rkv::CompleteMigrationResult::Appiled)
         {
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             sharpen::AwaitableFuture<bool> future;
@@ -438,10 +437,15 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
             {
                 std::printf("[Info]Completing %llu migration\n",migration.GetGroupId());
                 result = this->client_->CompleteMigration(migration.GetGroupId(),this->selfId_);
+                std::printf("[Info]%llu migration completed\n",migration.GetGroupId());
                 if(future.IsPending())
                 {
                     timer->Cancel();
                     future.WaitAsync();
+                }
+                if(result == rkv::CompleteMigrationResult::NotCommit)
+                {
+                    this->client_->Reset();
                 }
             }
             catch(const std::exception &e)
@@ -451,10 +455,6 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
                 {
                     timer->Cancel();
                     future.WaitAsync();
-                }
-                else
-                {
-                    this->client_->Reset();
                 }
                 return false;
             }
@@ -728,6 +728,7 @@ rkv::AppendEntriesResult rkv::WorkerServer::ProposeAppendEntries(rkv::RaftGroup 
     bool result{false};
     do
     {
+        commitCount = 0;
         result = group.ProposeAppendEntries();
         if(!result)
         {

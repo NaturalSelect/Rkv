@@ -121,6 +121,7 @@ static void Entry()
             {
                 case rkv::MotifyResult::NotCommit:
                 {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
                     std::fprintf(stderr,"[Error]Cannot put the key and value\n");
                     std::puts("[Info]Disconnect with leader");
                 }
@@ -146,6 +147,7 @@ static void Entry()
             {
                 case rkv::MotifyResult::NotCommit:
                 {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
                     std::fprintf(stderr,"[Error]Cannot put the key and value\n");
                     std::puts("[Info]Disconnect with leader");
                 }

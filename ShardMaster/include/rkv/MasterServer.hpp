@@ -94,7 +94,6 @@ namespace rkv
         inline rkv::AppendEntriesResult ProposeAppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
         {
             this->group_->DelayLeaderCycle();
-            std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
             if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
             {
                 return rkv::AppendEntriesResult::NotCommit;
@@ -108,6 +107,7 @@ namespace rkv
             bool result{false};
             do
             {
+                commitCount = 0;
                 result = this->group_->ProposeAppendEntries();
                 if(!result)
                 {

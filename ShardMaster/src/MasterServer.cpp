@@ -232,6 +232,10 @@ void rkv::MasterServer::OnGetShardByKey(sharpen::INetStreamChannel &channel,cons
                         std::vector<rkv::RaftLog> logs;
                         logs.reserve(2);
                         index = this->shards_->GenrateEmplaceLogs(std::back_inserter(logs),&shard,&shard + 1,index,term);
+                        if(logs.empty())
+                        {
+                            index -= 1;
+                        }
                         rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                         switch (result)
                         {
@@ -417,6 +421,7 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                     }
                     if(index)
                     {
+                        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
                         std::vector<sharpen::IpEndPoint> workers;
                         workers.reserve(Self::replicationFactor_);
                         std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
@@ -575,6 +580,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                 }
                 if (index)
                 {
+                    std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
                     std::vector<rkv::RaftLog> logs;
                     logs.reserve(Self::reverseLogsCount_);
                     std::size_t migrationsCount{migrations.size()};
@@ -640,7 +646,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         response.SetResult(rkv::CompleteMigrationResult::NotCommit);
                         break;
                     }
-                    //notify
+                    //notify migration completed
                     if(notifyMigration.Exist() && notifyShard)
                     {
                         std::vector<sharpen::IpEndPoint> workers{notifyShard->Workers()};
