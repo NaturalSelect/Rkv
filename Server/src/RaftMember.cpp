@@ -25,6 +25,7 @@ void rkv::RaftMember::Cancel()
 {
     if(this->channel_)
     {
+        this->channel_->Cancel();
         this->channel_->Close();
     }
 }

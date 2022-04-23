@@ -519,7 +519,7 @@ void rkv::WorkerServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
             if(ite != this->groups_.end())
             {
                 std::printf("[Info]Channel want to append entires to host(%llu)\n",ite->first);
-                ite->second->DelayCycle();
+                ite->second->DelayFollowerCycle();
                 {
                     std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
                     result = ite->second->Raft().AppendEntries(request.Logs().begin(),request.Logs().end(),request.LeaderId(),request.GetLeaderTerm(),request.GetPrevLogIndex(),request.GetPrevLogTerm(),request.GetCommitIndex());
@@ -844,7 +844,7 @@ void rkv::WorkerServer::OnPut(sharpen::INetStreamChannel &channel,const sharpen:
                             std::uint64_t index{0};
                             std::uint64_t term{0};
                             {
-                                ite->second->DelayCycle();
+                                ite->second->DelayLeaderCycle();
                                 std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
                                 if(ite->second->Raft().GetRole() == sharpen::RaftRole::Leader)
                                 {
@@ -902,7 +902,7 @@ void rkv::WorkerServer::OnDelete(sharpen::INetStreamChannel &channel,const sharp
                 auto ite = this->groups_.find(shard.Get().first);
                 if(ite != this->groups_.end())
                 {
-                    ite->second->DelayCycle();
+                    ite->second->DelayLeaderCycle();
                     std::unique_lock<sharpen::AsyncMutex> raftLock{ite->second->GetRaftLock()};
                     std::uint64_t index{0};
                     std::uint64_t term{0};
