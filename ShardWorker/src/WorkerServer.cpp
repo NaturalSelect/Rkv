@@ -256,7 +256,7 @@ void rkv::WorkerServer::CleaupCompletedMigration(const rkv::CompletedMigration &
         std::vector<sharpen::ByteBuffer> keys;
         {
             auto scanner{this->app_->GetScanner(migration.BeginKey(),migration.EndKey())};
-            if(!scanner.IsEmpty())
+            if(!scanner.Empty())
             {
                 keys.reserve(Self::maxKeysPerShard_);
                 do
@@ -625,7 +625,7 @@ std::uint64_t rkv::WorkerServer::ScanKeyCount(std::uint64_t id,const sharpen::By
     {
         auto scanner{this->app_->GetScanner()};
         scanner.Seek(beginKey);
-        if(!scanner.IsEmpty())
+        if(!scanner.Empty())
         {
             do
             {
@@ -707,7 +707,7 @@ sharpen::Optional<sharpen::ByteBuffer> rkv::WorkerServer::ScanKeys(const sharpen
     {
         auto scanner{this->app_->GetScanner()};
         scanner.Seek(beginKey);
-        if(!scanner.IsEmpty())
+        if(!scanner.Empty())
         {
             do
             {
@@ -948,7 +948,7 @@ void rkv::WorkerServer::OnMigrate(sharpen::INetStreamChannel &channel,const shar
     rkv::MigrateResponse response;
     {
         auto scanner{this->app_->GetScanner(request.BeginKey(),request.EndKey())};
-        if(!scanner.IsEmpty())
+        if(!scanner.Empty())
         {
             do
             {

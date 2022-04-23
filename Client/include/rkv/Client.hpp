@@ -44,7 +44,7 @@ namespace rkv
 
         sharpen::EventEngine *engine_;
         mutable std::minstd_rand random_;
-        std::uniform_int_distribution<std::size_t> distribution_;
+        mutable std::uniform_int_distribution<std::size_t> distribution_;
         sharpen::Optional<sharpen::IpEndPoint> leaderId_;
         mutable std::unordered_map<sharpen::IpEndPoint,sharpen::NetStreamChannelPtr> serverMap_;
         sharpen::TimerPtr timer_;
