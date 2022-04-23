@@ -393,12 +393,12 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
             if(!this->migrations_->Contain(request.BeginKey()))
             {
                 this->statusLock_.UpgradeFromRead();
+                std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                 if(!this->shards_->Contain(request.BeginKey()) && !this->migrations_->Contain(request.BeginKey()))
                 {
                     std::uint64_t index{0};
                     std::uint64_t term{0};
                     {
-                        std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                         if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
                         {
                             std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
@@ -554,10 +554,10 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
             this->migrations_->GetMigrations(std::back_inserter(migrations),request.GetGroupId());
             if (!migrations.empty())
             {
+                std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                 std::uint64_t index{0};
                 std::uint64_t term{0};
                 {
-                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                     if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
                     {
                         std::uint64_t lastAppiled{this->group_->Raft().GetLastApplied()};
@@ -580,7 +580,6 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                 }
                 if (index)
                 {
-                    std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
                     std::vector<rkv::RaftLog> logs;
                     logs.reserve(Self::reverseLogsCount_);
                     std::size_t migrationsCount{migrations.size()};
@@ -646,6 +645,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                         response.SetResult(rkv::CompleteMigrationResult::NotCommit);
                         break;
                     }
+                    raftLock.unlock();
                     //notify migration completed
                     if(notifyMigration.Exist() && notifyShard)
                     {
