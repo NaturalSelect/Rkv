@@ -114,6 +114,7 @@ namespace rkv
             {
                 if(begin->second)
                 {
+                    begin->second->Cancel();
                     begin->second->Close();
                 }
             }
