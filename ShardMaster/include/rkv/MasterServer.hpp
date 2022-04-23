@@ -154,7 +154,7 @@ namespace rkv
         std::shared_ptr<rkv::KeyValueService> app_;
         std::unique_ptr<rkv::RaftGroup> group_;
         mutable std::minstd_rand random_;
-        std::uniform_int_distribution<std::size_t> distribution_;
+        mutable std::uniform_int_distribution<std::size_t> distribution_;
         std::vector<sharpen::IpEndPoint> workers_;
         sharpen::AsyncReadWriteLock statusLock_;
         std::unique_ptr<rkv::ShardManger> shards_;

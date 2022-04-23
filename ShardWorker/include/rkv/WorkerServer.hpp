@@ -32,11 +32,11 @@ namespace rkv
         using Self = rkv::WorkerServer;
         using Raft = sharpen::RaftWrapper<sharpen::IpEndPoint,rkv::RaftMember,rkv::RaftLog,rkv::KeyValueService,rkv::RaftStorage>;
 
-        static constexpr std::size_t maxKeysPerShard_{5}; //5000
+        static constexpr std::uint32_t maxKeysPerShard_{5}; //5000
 
-        static constexpr std::size_t migrationTimeout_{5000};
+        static constexpr std::uint32_t migrationTimeout_{5000};
 
-        static constexpr std::size_t masterTimeout_{5000};
+        static constexpr std::uint32_t masterTimeout_{5000};
 
         static std::string FormatStorageName(std::uint64_t id);
 

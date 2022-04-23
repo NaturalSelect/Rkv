@@ -42,9 +42,9 @@ namespace rkv
         static inline sharpen::RaftGroupOption MakeOption() noexcept
         {
             sharpen::RaftGroupOption opt;
-            opt.SetAppendEntriesCycle(std::chrono::milliseconds{Self::appendEntriesCycle_});
-            opt.SetMinElectionCycle(std::chrono::milliseconds{Self::minElectionCycle_});
-            opt.SetMaxElectionCycle(std::chrono::milliseconds{Self::maxElectionCycle_});
+            opt.SetAppendEntriesCycle(std::chrono::milliseconds{static_cast<std::int64_t>(Self::appendEntriesCycle_)});
+            opt.SetMinElectionCycle(std::chrono::milliseconds{static_cast<std::int64_t>(Self::minElectionCycle_)});
+            opt.SetMaxElectionCycle(std::chrono::milliseconds{static_cast<std::int64_t>(Self::maxElectionCycle_)});
             return opt;
         }
 

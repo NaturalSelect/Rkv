@@ -21,7 +21,7 @@ sharpen::TimerLoop::LoopStatus rkv::RaftGroup::FollowerLoop() noexcept
     proposal.Callback() = std::bind(&Self::RequestVoteCallback,this);
     sharpen::AwaitableFuture<bool> continuation;
     sharpen::AwaitableFuture<void> finish;
-    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::electionMaxWaitMs_},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
+    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{static_cast<std::int64_t>(Self::electionMaxWaitMs_)},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
     continuation.Await();
     bool result{false};
     {
@@ -56,7 +56,7 @@ bool rkv::RaftGroup::ProposeAppendEntries()
     proposal.Id() = this->raft_.GetSelfId();
     sharpen::AwaitableFuture<bool> continuation;
     sharpen::AwaitableFuture<void> finish;
-    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{Self::appendEntriesMaxWaitMs_},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
+    sharpen::Quorum::TimeLimitedProposeAsync(this->proposeTimer_,std::chrono::milliseconds{static_cast<std::int64_t>(Self::appendEntriesMaxWaitMs_)},this->raft_.Members().begin(),this->raft_.Members().end(),proposal,continuation,finish);
     bool result{continuation.Await()};
     if(!result)
     {

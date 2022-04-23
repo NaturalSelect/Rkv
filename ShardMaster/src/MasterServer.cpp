@@ -356,7 +356,7 @@ void rkv::MasterServer::NotifyStartMigration(const sharpen::IpEndPoint &id,const
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        bool connected{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
+        bool connected{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{static_cast<std::int64_t>(Self::notifyTimeout_)},id)};
         if (connected)
         {
             sharpen::ByteBuffer buf;
@@ -512,7 +512,7 @@ void rkv::MasterServer::NotifyMigrationCompleted(const sharpen::IpEndPoint &id,c
         sharpen::NetStreamChannelPtr channel = sharpen::MakeTcpStreamChannel(sharpen::AddressFamily::Ip);
         channel->Bind(ep);
         channel->Register(*this->engine_);
-        bool result{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::notifyTimeout_},id)};
+        bool result{channel->ConnectWithTimeout(timer,std::chrono::milliseconds{static_cast<std::int64_t>(Self::notifyTimeout_)},id)};
         if (result)
         {
             sharpen::ByteBuffer buf;

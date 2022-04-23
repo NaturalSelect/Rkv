@@ -52,7 +52,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     sharpen::AwaitableFuture<bool> future;
     using TimeoutPtr = void(*)(sharpen::Future<bool>&,rkv::MasterClient*);
     future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-    timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+    timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::masterTimeout_)});
     try
     {
         this->client_->GetMigrations(std::back_inserter(migrations),this->selfId_);
@@ -102,7 +102,7 @@ rkv::WorkerServer::WorkerServer(sharpen::EventEngine &engine,const rkv::WorkerSe
     {
         future.Reset();
         future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-        timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+        timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::size_t>(Self::masterTimeout_)});
         try
         {
             this->client_->GetCompletedMigrations(std::back_inserter(completedMigations),count,begin->GetId());
@@ -149,7 +149,7 @@ std::vector<rkv::Shard> rkv::WorkerServer::FlushShard(const std::set<sharpen::By
         {
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::masterTimeout_)});
             this->client_->GetShard(std::back_inserter(shards),this->selfId_);
         }
         std::puts("[Info]Reading shards done");
@@ -302,7 +302,7 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
         std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
         sharpen::AwaitableFuture<bool> future;
         future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-        timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+        timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::masterTimeout_)});
         try
         {
             shard = this->client_->GetShard(migration.GetSource());
@@ -352,7 +352,7 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
                     tmp->Register(*this->engine_);
                     try
                     {
-                        if (tmp->ConnectWithTimeout(timer,std::chrono::milliseconds{Self::migrationTimeout_},id))
+                        if (tmp->ConnectWithTimeout(timer,std::chrono::milliseconds{static_cast<std::int64_t>(Self::migrationTimeout_)},id))
                         {
                             channel = std::move(tmp);
                         }
@@ -374,7 +374,7 @@ bool rkv::WorkerServer::ExecuteMigration(const rkv::Migration &migration)
                 rkv::MessageHeader header{rkv::MakeMessageHeader(rkv::MessageType::MigrateRequest,buf.GetSize())};
                 sharpen::AwaitableFuture<bool> future;
                 future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-                timer->WaitAsync(future,std::chrono::milliseconds{Self::migrationTimeout_});
+                timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::migrationTimeout_)});
                 try
                 {
                     channel->WriteObjectAsync(header);
@@ -433,7 +433,7 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             sharpen::AwaitableFuture<bool> future;
             future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::masterTimeout_)});
             try
             {
                 std::printf("[Info]Completing %llu migration\n",migration.GetGroupId());
@@ -761,7 +761,7 @@ void rkv::WorkerServer::DeriveNewShard(std::uint64_t source,const sharpen::ByteB
         {
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
-            timer->WaitAsync(future,std::chrono::milliseconds{Self::masterTimeout_});
+            timer->WaitAsync(future,std::chrono::milliseconds{static_cast<std::int64_t>(Self::masterTimeout_)});
             this->client_->DeriveShard(source,beginKey,endKey);
         }
         std::puts("[Info]Deriving shards done");
