@@ -157,17 +157,6 @@ namespace rkv
                         }   
                     }
                 }
-                while (begin != end)
-                {
-                    std::uint64_t id{*begin};
-                    rkv::RaftLog log;
-                    log.SetOperation(rkv::RaftLog::Operation::Delete);
-                    log.SetIndex(beginIndex++);
-                    log.SetTerm(term);
-                    log.Key() = Self::FormatMigrationKey(id);
-                    *inserter++ = std::move(log);
-                    ++begin;
-                }
                 rkv::RaftLog log;
                 log.SetOperation(rkv::RaftLog::Operation::Put);
                 log.SetIndex(beginIndex);
@@ -177,6 +166,18 @@ namespace rkv
                 sharpen::BinarySerializator::StoreTo(index,buf);
                 log.Value() = std::move(buf);
                 *inserter++ = std::move(log);
+                while (begin != end)
+                {
+                    ++beginIndex;
+                    std::uint64_t id{*begin};
+                    rkv::RaftLog log;
+                    log.SetOperation(rkv::RaftLog::Operation::Delete);
+                    log.SetIndex(beginIndex);
+                    log.SetTerm(term);
+                    log.Key() = Self::FormatMigrationKey(id);
+                    *inserter++ = std::move(log);
+                    ++begin;
+                }
             }
             return beginIndex;
         }
