@@ -113,6 +113,7 @@ void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel)
 
 void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
+    this->group_->DelayFollowerCycle();
     rkv::AppendEntriesRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
@@ -127,7 +128,6 @@ void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
     }
     if(result)
     {
-        this->group_->DelayFollowerCycle();
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
         {
             this->statusLock_.LockWrite();
