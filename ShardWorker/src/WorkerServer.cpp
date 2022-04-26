@@ -428,7 +428,13 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
     {
         rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
         sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
+        std::size_t tryCount{0};
+        while(result != rkv::CompleteMigrationResult::Appiled && tryCount != Self::maxCompleteMigrationTry_)
         {
+            if(tryCount)
+            {
+                timer->Await(std::chrono::milliseconds{static_cast<std::int64_t>(Self::completeMigrationWait_)});
+            }
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             sharpen::AwaitableFuture<bool> future;
             future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
@@ -448,7 +454,7 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
                     this->client_->Reset();
                 }
             }
-            catch(const std::exception &e)
+            catch(const std::logic_error &e)
             {
                 std::fprintf(stderr,"[Error]Cannot complete migration because %s\n",e.what());
                 if(future.IsPending())
@@ -456,8 +462,17 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
                     timer->Cancel();
                     future.WaitAsync();
                 }
-                return false;
             }
+            catch(const std::system_error &e)
+            {
+                std::fprintf(stderr,"[Error]Cannot complete migration because %s\n",e.what());
+                if(future.IsPending())
+                {
+                    timer->Cancel();
+                    future.WaitAsync();
+                }
+            }
+            ++tryCount;
         }
         return result == rkv::CompleteMigrationResult::Appiled;
     }

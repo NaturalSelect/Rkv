@@ -38,6 +38,10 @@ namespace rkv
 
         static constexpr std::uint32_t masterTimeout_{5000};
 
+        static constexpr std::size_t maxCompleteMigrationTry_{5};
+
+        static constexpr std::uint32_t completeMigrationWait_{5000};
+
         static std::string FormatStorageName(std::uint64_t id);
 
         static void CancelClient(sharpen::Future<bool> &future,rkv::MasterClient *client)
