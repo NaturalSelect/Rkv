@@ -113,7 +113,6 @@ void rkv::MasterServer::OnLeaderRedirect(sharpen::INetStreamChannel &channel)
 
 void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,const sharpen::ByteBuffer &buf)
 {
-    this->group_->DelayFollowerCycle();
     rkv::AppendEntriesRequest request;
     request.Unserialize().LoadFrom(buf);
     bool result{false};
@@ -128,6 +127,7 @@ void rkv::MasterServer::OnAppendEntries(sharpen::INetStreamChannel &channel,cons
     }
     if(result)
     {
+        this->group_->DelayFollowerCycle();
         std::printf("[Info]Leader append %zu entires to host\n",request.Logs().size());
         {
             this->statusLock_.LockWrite();
@@ -393,11 +393,11 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
             if(!this->migrations_->Contain(request.BeginKey()))
             {
                 this->statusLock_.UpgradeFromRead();
-                std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                 if(!this->shards_->Contain(request.BeginKey()) && !this->migrations_->Contain(request.BeginKey()))
                 {
                     std::uint64_t index{0};
                     std::uint64_t term{0};
+                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                     {
                         if(this->group_->Raft().GetRole() == sharpen::RaftRole::Leader)
                         {
@@ -421,7 +421,6 @@ void rkv::MasterServer::OnDerviveShard(sharpen::INetStreamChannel &channel,const
                     }
                     if(index)
                     {
-                        std::unique_lock<sharpen::AsyncMutex> lock{this->group_->GetRaftLock()};
                         std::vector<sharpen::IpEndPoint> workers;
                         workers.reserve(Self::replicationFactor_);
                         std::size_t count{this->SelectWorkers(std::back_inserter(workers),Self::replicationFactor_)};
@@ -554,7 +553,7 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
             this->migrations_->GetMigrations(std::back_inserter(migrations),request.GetGroupId());
             if (!migrations.empty())
             {
-                std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
+                                    std::unique_lock<sharpen::AsyncMutex> raftLock{this->group_->GetRaftLock()};
                 std::uint64_t index{0};
                 std::uint64_t term{0};
                 {
@@ -631,6 +630,10 @@ void rkv::MasterServer::OnCompleteMigration(sharpen::INetStreamChannel &channel,
                             index = this->migrations_->GenrateRemoveLogs(std::back_inserter(logs),&id,&id + 1,index + indexOffset,term);
                             break;
                         }
+                    }
+                    if(logs.empty())
+                    {
+                        index -= 1;
                     }
                     rkv::AppendEntriesResult result{this->ProposeAppendEntries(std::make_move_iterator(logs.begin()),std::make_move_iterator(logs.end()),index)};
                     switch (result)

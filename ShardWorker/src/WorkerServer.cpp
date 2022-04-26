@@ -428,13 +428,14 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
     {
         rkv::CompleteMigrationResult result{rkv::CompleteMigrationResult::NotCommit};
         sharpen::TimerPtr timer = sharpen::MakeTimer(*this->engine_);
-        std::size_t tryCount{0};
-        while(result != rkv::CompleteMigrationResult::Appiled && tryCount != Self::maxCompleteMigrationTry_)
+        bool first{true};
+        while(result != rkv::CompleteMigrationResult::Appiled)
         {
-            if(tryCount)
+            if(!first)
             {
                 timer->Await(std::chrono::milliseconds{static_cast<std::int64_t>(Self::completeMigrationWait_)});
             }
+            first = false;
             std::unique_lock<sharpen::AsyncMutex> lock{this->clientLock_};
             sharpen::AwaitableFuture<bool> future;
             future.SetCallback(std::bind(static_cast<TimeoutPtr>(&Self::CancelClient),std::placeholders::_1,this->client_.get()));
@@ -472,7 +473,6 @@ bool rkv::WorkerServer::ExecuteMigrationAndNotify(const rkv::Migration &migratio
                     future.WaitAsync();
                 }
             }
-            ++tryCount;
         }
         return result == rkv::CompleteMigrationResult::Appiled;
     }

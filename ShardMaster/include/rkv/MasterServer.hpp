@@ -93,7 +93,6 @@ namespace rkv
         template<typename _Iterator,typename _Check = decltype(std::declval<rkv::RaftLog&>() = *std::declval<_Iterator&>())>
         inline rkv::AppendEntriesResult ProposeAppendEntries(_Iterator begin,_Iterator end,std::uint64_t commitIndex)
         {
-            this->group_->DelayLeaderCycle();
             if(this->group_->Raft().GetRole() != sharpen::RaftRole::Leader)
             {
                 return rkv::AppendEntriesResult::NotCommit;
