@@ -47,18 +47,21 @@ void rkv::MigrationManger::Flush()
             std::uint64_t maxGroupId{0};
             for (auto begin = indexs.begin(),end = indexs.end(); begin != end; ++begin)
             {
-                sharpen::ByteBuffer buf{this->service_->Get(Self::FormatMigrationKey(*begin))};
-                rkv::Migration migration;
-                migration.Unserialize().LoadFrom(buf);
-                if(migration.GetId() > maxId)
+                sharpen::Optional<sharpen::ByteBuffer> buf{this->service_->TryGet(Self::FormatMigrationKey(*begin))};
+                if(buf.Exist())
                 {
-                    maxId = migration.GetId();
+                    rkv::Migration migration;
+                    migration.Unserialize().LoadFrom(buf.Get());
+                    if(migration.GetId() > maxId)
+                    {
+                        maxId = migration.GetId();
+                    }
+                    if(migration.GetGroupId() > maxGroupId)
+                    {
+                        maxGroupId = migration.GetGroupId();
+                    }
+                    this->migrations_.emplace_back(std::move(migration));
                 }
-                if(migration.GetGroupId() > maxGroupId)
-                {
-                    maxGroupId = migration.GetGroupId();
-                }
-                this->migrations_.emplace_back(std::move(migration));
             }
             this->nextMigrationId_ = maxId + 1;
             this->nextGroupId_ = maxGroupId + 1;
